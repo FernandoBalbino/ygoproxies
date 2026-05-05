@@ -15,7 +15,6 @@ const TEXT_COLOR = "#010101";
 const LIGHT_TEXT_COLOR = "#ffffff";
 const BASE_FILL_COLOR = "#404040";
 const HARD_MIN_FONT_SIZE = 5;
-const NAME_ATTRIBUTE_GAP = 78;
 const PENDULUM_ARTWORK = { x: 56, y: 213, width: 702, height: 530 } as const;
 const PENDULUM_CLEAR_AREA = { left: 56, top: 213, width: 702, height: 910 } as const;
 const PENDULUM_EFFECT_BACKGROUND = { x: 55, y: 738, width: 705, height: 147 } as const;
@@ -64,6 +63,8 @@ const CARD_FONTS = {
 } as const;
 
 type CardFont = (typeof CARD_FONTS)[keyof typeof CARD_FONTS];
+
+let cardFontWarmupPromise: Promise<void> | null = null;
 
 type FontSizeData = {
   fontSize: number;
@@ -229,6 +230,42 @@ function cardFontCss(): string {
 
 function svgFontFamily(font: CardFont): string {
   return `"${font.family}", "Times New Roman", serif`;
+}
+
+async function warmUpCardFonts(): Promise<void> {
+  if (!cardFontWarmupPromise) {
+    cardFontWarmupPromise = (async () => {
+      await Promise.all(
+        Object.values(CARD_FONTS).map((font) => sharp({
+          text: {
+            text: escapePangoMarkup("YGO 123 ÁÉÍÓÚ Ç"),
+            font: `${font.family} 32`,
+            fontfile: font.filePath,
+            rgba: true,
+            dpi: 72,
+            wrap: "none",
+          },
+        }).metadata().catch(() => undefined)),
+      );
+
+      const svg = Buffer.from(`
+        <svg width="24" height="24" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+          <style>
+            ${cardFontCss()}
+          </style>
+          ${Object.values(CARD_FONTS).map((font, index) => (
+            `<text x="0" y="${index + 8}" font-family="${svgFontFamily(font)}" font-size="8">YGO</text>`
+          )).join("")}
+        </svg>
+      `);
+
+      await sharp(svg).png().toBuffer().catch(() => undefined);
+    })().catch(() => {
+      cardFontWarmupPromise = null;
+    });
+  }
+
+  return cardFontWarmupPromise;
 }
 
 function frameKey(frameType: string): string {
@@ -716,14 +753,8 @@ async function buildTextOverlay(card: NormalizedCard, layout: CardLayout, render
   const renderedName = card.name;
   const nameMaxWidth = Math.max(
     scaledNumber(180, renderScale),
-    Math.min(layout.name.maxWidth, layout.attribute.x - layout.name.x - scaledNumber(NAME_ATTRIBUTE_GAP, renderScale)),
+    Math.min(layout.name.maxWidth, layout.attribute.x - layout.name.x - scaledNumber(48, renderScale)),
   );
-  const nameClip = {
-    x: layout.name.x - scaledNumber(4, renderScale),
-    y: Math.max(0, layout.name.y - layout.name.fontSize),
-    width: nameMaxWidth + scaledNumber(8, renderScale),
-    height: layout.name.fontSize * 1.35,
-  };
   const name = await fitSingleLine(
     renderedName,
     nameMaxWidth,
@@ -840,14 +871,7 @@ async function buildTextOverlay(card: NormalizedCard, layout: CardLayout, render
           text-anchor: middle;
         }
       </style>
-      <defs>
-        <clipPath id="name-safe-area">
-          <rect x="${nameClip.x}" y="${nameClip.y}" width="${nameClip.width}" height="${nameClip.height}" />
-        </clipPath>
-      </defs>
-      <g clip-path="url(#name-safe-area)">
-        ${compressedText(renderedName, layout.name.x, layout.name.y, name, "name")}
-      </g>
+      ${compressedText(renderedName, layout.name.x, layout.name.y, name, "name")}
       ${typeLine ? compressedText(typeLineText(card), layout.typeLine.x, layout.typeLine.y, typeLine, "type") : ""}
       ${spellTrapTypeLine}
       ${pendulumDescription ? centeredTextGroup(pendulumDescription, pendulumEffectText, "effect") : ""}
@@ -876,6 +900,8 @@ export async function renderCardImage(
   if (!sourceImageBuffer.length) {
     throw new Error("Imagem da carta nao encontrada.");
   }
+
+  await warmUpCardFonts();
 
   const frame = frameKey(card.frameType);
   const isPendulum = isPendulumCard(card);
