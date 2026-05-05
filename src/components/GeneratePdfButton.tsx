@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import {
   CheckCircle2,
@@ -340,7 +340,7 @@ export function GeneratePdfButton({ cards, onError }: GeneratePdfButtonProps) {
               {downloadProgressNote}
             </p>
             <p className="mt-1 text-xs font-semibold text-red-500">
-              NÃ£o feche e nem saia desta pÃ¡gina atÃ© o tÃ©rmino do processo.
+              Não feche e nem saia desta página até o término do processo.
             </p>
           </div>
         </div>
@@ -369,14 +369,14 @@ export function GeneratePdfButton({ cards, onError }: GeneratePdfButtonProps) {
             ) : (
               <FileDown size={18} />
             )}
-            Baixar grÃ¡tis com qualidade inferior
+            Baixar grátis com qualidade inferior
           </button>
 
           <div className="grid gap-2 rounded-lg border border-emerald-200 bg-emerald-50 p-3">
             <div className="flex items-center justify-between gap-3">
               <div>
                 <p className="text-sm font-black text-stone-950">
-                  FULL HD para impressÃ£o
+                  FULL HD para impressão
                 </p>
                 <p className="text-xs font-bold text-emerald-800">R$ 4,99</p>
               </div>
