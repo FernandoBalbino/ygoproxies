@@ -115,7 +115,6 @@ export async function createPixPayment(input: CreatePixPaymentInput): Promise<Pi
           category_id: FULL_HD_ITEM_CATEGORY,
           quantity: 1,
           unit_price: FULL_HD_AMOUNT,
-          currency_id: "BRL",
         },
       ],
       payer: {
