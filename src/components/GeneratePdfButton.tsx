@@ -1,7 +1,7 @@
 "use client";
 
 import { CheckCircle2, Copy, FileDown, Loader2, QrCode } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { downloadDeckPdf } from "@/services/pdf-generator.service";
 import type { DeckCard } from "@/types/deck.types";
 
@@ -108,6 +108,58 @@ export function GeneratePdfButton({ cards, onError }: GeneratePdfButtonProps) {
       setIsCheckingPayment(false);
     }
   }
+
+  useEffect(() => {
+    if (!payment || payment.status === "approved") {
+      return;
+    }
+
+    let isCancelled = false;
+    const paymentId = payment.id;
+
+    async function checkPaymentStatus() {
+      try {
+        const response = await fetch(`/api/mercado-pago/payments/${paymentId}`);
+        const payload = (await response.json()) as {
+          payment?: { status: string; statusDetail: string };
+          error?: string;
+        };
+
+        if (!response.ok || !payload.payment || isCancelled) {
+          return;
+        }
+
+        setPayment((current) => {
+          if (!current || !payload.payment) return current;
+          if (current.status === payload.payment.status && current.statusDetail === payload.payment.statusDetail) {
+            return current;
+          }
+
+          return {
+            ...current,
+            status: payload.payment.status,
+            statusDetail: payload.payment.statusDetail,
+          };
+        });
+
+        if (payload.payment.status === "approved") {
+          setPaymentMessage("Pagamento confirmado. FULL HD liberado.");
+        } else if (!paymentMessage) {
+          setPaymentMessage("Aguardando pagamento.");
+        }
+      } catch {
+        // The manual verify button remains available if a background check fails.
+      }
+    }
+
+    void checkPaymentStatus();
+    const timer = window.setInterval(checkPaymentStatus, 5000);
+
+    return () => {
+      isCancelled = true;
+      window.clearInterval(timer);
+    };
+  }, [payment?.id, payment?.status, paymentMessage]);
 
   async function handleDownloadFullHd() {
     setIsGeneratingFullHd(true);
