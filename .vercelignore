@@ -1,0 +1,14 @@
+node_modules
+.next
+.git
+.codex-ygocarder-reference
+public/cache
+public/generated
+atributos
+modelos
+level.png
+public/assets/attributes
+public/assets/fonts
+public/assets/stars
+public/assets/subfamilies
+public/assets/templates

@@ -1,0 +1,23 @@
+node_modules
+.next
+.vercel
+out
+dist
+.env*.local
+*.tsbuildinfo
+
+# Runtime output must not be committed or deployed.
+public/cache/
+public/generated/
+public/assets/stars/yugioh-proxies*.pdf
+
+# Local reference and superseded pre-YGOCarder assets.
+.codex-ygocarder-reference/
+atributos/
+modelos/
+level.png
+public/assets/attributes/
+public/assets/fonts/
+public/assets/stars/
+public/assets/subfamilies/
+public/assets/templates/
