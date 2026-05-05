@@ -4,6 +4,12 @@ import type { DeckCard } from "@/types/deck.types";
 
 export type PdfQualityMode = "free" | "full-hd";
 
+export interface PdfGenerationProgress {
+  current: number;
+  total: number;
+  stage: "rendering" | "packing" | "saving";
+}
+
 const MM_TO_PT = 72 / 25.4;
 const CARDS_PER_PAGE = 9;
 const COLUMNS = 3;
@@ -104,7 +110,11 @@ async function dataUrlToJpegBytes(dataUrl: string, quality: number): Promise<Uin
   return blobToBytes(blob);
 }
 
-export async function generateDeckPdf(cards: DeckCard[], qualityMode: PdfQualityMode = "full-hd"): Promise<Blob> {
+export async function generateDeckPdf(
+  cards: DeckCard[],
+  qualityMode: PdfQualityMode = "full-hd",
+  onProgress?: (progress: PdfGenerationProgress) => void,
+): Promise<Blob> {
   if (!cards.length) {
     throw new Error("Adicione pelo menos uma carta ao deck.");
   }
@@ -130,6 +140,11 @@ export async function generateDeckPdf(cards: DeckCard[], qualityMode: PdfQuality
     const pageIndex = index % CARDS_PER_PAGE;
     const column = pageIndex % COLUMNS;
     const row = Math.floor(pageIndex / COLUMNS);
+    onProgress?.({
+      current: index + 1,
+      total: cards.length,
+      stage: qualityMode === "free" ? "packing" : "rendering",
+    });
     const renderedImageDataUrl = qualityMode === "free"
       ? cards[index].renderedImageDataUrl
       : await getFullHdRenderedImageDataUrl(cards[index], fullHdRenderCache);
@@ -145,6 +160,7 @@ export async function generateDeckPdf(cards: DeckCard[], qualityMode: PdfQuality
     });
   }
 
+  onProgress?.({ current: cards.length, total: cards.length, stage: "saving" });
   const pdfBytes = await pdf.save({ useObjectStreams: false });
   const pdfBuffer = new ArrayBuffer(pdfBytes.byteLength);
   new Uint8Array(pdfBuffer).set(pdfBytes);
@@ -152,8 +168,12 @@ export async function generateDeckPdf(cards: DeckCard[], qualityMode: PdfQuality
   return new Blob([pdfBuffer], { type: "application/pdf" });
 }
 
-export async function downloadDeckPdf(cards: DeckCard[], qualityMode: PdfQualityMode = "full-hd"): Promise<void> {
-  const blob = await generateDeckPdf(cards, qualityMode);
+export async function downloadDeckPdf(
+  cards: DeckCard[],
+  qualityMode: PdfQualityMode = "full-hd",
+  onProgress?: (progress: PdfGenerationProgress) => void,
+): Promise<void> {
+  const blob = await generateDeckPdf(cards, qualityMode, onProgress);
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.href = url;

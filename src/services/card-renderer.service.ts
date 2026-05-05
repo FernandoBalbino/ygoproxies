@@ -15,6 +15,7 @@ const TEXT_COLOR = "#010101";
 const LIGHT_TEXT_COLOR = "#ffffff";
 const BASE_FILL_COLOR = "#404040";
 const HARD_MIN_FONT_SIZE = 5;
+const NAME_ATTRIBUTE_GAP = 78;
 const PENDULUM_ARTWORK = { x: 56, y: 213, width: 702, height: 530 } as const;
 const PENDULUM_CLEAR_AREA = { left: 56, top: 213, width: 702, height: 910 } as const;
 const PENDULUM_EFFECT_BACKGROUND = { x: 55, y: 738, width: 705, height: 147 } as const;
@@ -592,7 +593,7 @@ function spellTrapSubfamilyPlacement(layout: CardLayout, renderScale: RenderScal
     iconLeft,
     iconTop: Math.round(layout.subfamily.y),
     closeBracketX,
-    textRightX: iconLeft - scaledNumber(8, renderScale),
+    textRightX: iconLeft + scaledNumber(12, renderScale),
   };
 }
 
@@ -715,8 +716,14 @@ async function buildTextOverlay(card: NormalizedCard, layout: CardLayout, render
   const renderedName = card.name;
   const nameMaxWidth = Math.max(
     scaledNumber(180, renderScale),
-    Math.min(layout.name.maxWidth, layout.attribute.x - layout.name.x - scaledNumber(48, renderScale)),
+    Math.min(layout.name.maxWidth, layout.attribute.x - layout.name.x - scaledNumber(NAME_ATTRIBUTE_GAP, renderScale)),
   );
+  const nameClip = {
+    x: layout.name.x - scaledNumber(4, renderScale),
+    y: Math.max(0, layout.name.y - layout.name.fontSize),
+    width: nameMaxWidth + scaledNumber(8, renderScale),
+    height: layout.name.fontSize * 1.35,
+  };
   const name = await fitSingleLine(
     renderedName,
     nameMaxWidth,
@@ -833,7 +840,14 @@ async function buildTextOverlay(card: NormalizedCard, layout: CardLayout, render
           text-anchor: middle;
         }
       </style>
-      ${compressedText(renderedName, layout.name.x, layout.name.y, name, "name")}
+      <defs>
+        <clipPath id="name-safe-area">
+          <rect x="${nameClip.x}" y="${nameClip.y}" width="${nameClip.width}" height="${nameClip.height}" />
+        </clipPath>
+      </defs>
+      <g clip-path="url(#name-safe-area)">
+        ${compressedText(renderedName, layout.name.x, layout.name.y, name, "name")}
+      </g>
       ${typeLine ? compressedText(typeLineText(card), layout.typeLine.x, layout.typeLine.y, typeLine, "type") : ""}
       ${spellTrapTypeLine}
       ${pendulumDescription ? centeredTextGroup(pendulumDescription, pendulumEffectText, "effect") : ""}

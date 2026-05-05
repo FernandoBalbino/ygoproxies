@@ -1,8 +1,8 @@
 "use client";
 
-import { CheckCircle2, Copy, FileDown, Loader2, QrCode } from "lucide-react";
+import { CheckCircle2, Copy, FileDown, Loader2, Printer, QrCode } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { downloadDeckPdf } from "@/services/pdf-generator.service";
+import { downloadDeckPdf, type PdfGenerationProgress } from "@/services/pdf-generator.service";
 import type { DeckCard } from "@/types/deck.types";
 
 interface GeneratePdfButtonProps {
@@ -49,6 +49,7 @@ export function GeneratePdfButton({ cards, onError }: GeneratePdfButtonProps) {
   const [payerName, setPayerName] = useState("");
   const [payment, setPayment] = useState<PixPayment | null>(null);
   const [paymentMessage, setPaymentMessage] = useState("");
+  const [fullHdProgress, setFullHdProgress] = useState<PdfGenerationProgress | null>(null);
 
   useEffect(() => {
     if (previousDeckSignature.current === deckSignature) {
@@ -200,14 +201,16 @@ export function GeneratePdfButton({ cards, onError }: GeneratePdfButtonProps) {
 
   async function handleDownloadFullHd() {
     setIsGeneratingFullHd(true);
+    setFullHdProgress({ current: 0, total: cards.length, stage: "rendering" });
     onError("");
 
     try {
-      await downloadDeckPdf(cards, "full-hd");
+      await downloadDeckPdf(cards, "full-hd", setFullHdProgress);
     } catch (error) {
       onError(error instanceof Error ? error.message : "Falha ao gerar PDF FULL HD.");
     } finally {
       setIsGeneratingFullHd(false);
+      setFullHdProgress(null);
     }
   }
 
@@ -219,9 +222,43 @@ export function GeneratePdfButton({ cards, onError }: GeneratePdfButtonProps) {
 
   const hasCards = cards.length > 0;
   const isPaymentApproved = payment?.status === "approved";
+  const fullHdProgressPercent = fullHdProgress?.total
+    ? Math.min(100, Math.max(6, Math.round((fullHdProgress.current / fullHdProgress.total) * 100)))
+    : 8;
+  const fullHdProgressLabel = fullHdProgress?.stage === "saving"
+    ? "Fechando o PDF em alta qualidade..."
+    : fullHdProgress?.stage === "packing"
+      ? "Organizando as cartas no PDF..."
+      : "Renderizando cartas em alta resolucao para impressao...";
 
   return (
     <section className="space-y-3">
+      {isGeneratingFullHd ? (
+        <div className="fixed inset-0 z-[60] grid place-items-center bg-stone-950/70 px-4 backdrop-blur-sm">
+          <div
+            role="status"
+            aria-live="polite"
+            className="w-full max-w-sm rounded-lg border border-emerald-200 bg-white p-5 text-center shadow-[0_24px_60px_rgba(0,0,0,0.35)]"
+          >
+            <div className="mx-auto grid h-14 w-14 place-items-center rounded-lg bg-emerald-800 text-white">
+              <Printer size={26} />
+            </div>
+            <h2 className="mt-4 text-xl font-black text-stone-950">Preparando FULL HD</h2>
+            <p className="mt-2 text-sm font-bold leading-snug text-stone-600">{fullHdProgressLabel}</p>
+            <div className="mt-4 h-3 overflow-hidden rounded-full bg-stone-200">
+              <div
+                className="h-full rounded-full bg-emerald-800 transition-all"
+                style={{ width: `${fullHdProgressPercent}%` }}
+              />
+            </div>
+            <p className="mt-3 text-xs font-black text-emerald-900">
+              {fullHdProgress?.current ?? 0} de {fullHdProgress?.total ?? cards.length} cartas
+            </p>
+            <p className="mt-1 text-xs font-semibold text-stone-500">Pode levar alguns segundos porque a versao paga e renderizada em qualidade de impressao.</p>
+          </div>
+        </div>
+      ) : null}
+
       <button
         type="button"
         onClick={() => setIsOpen((current) => !current)}
@@ -247,8 +284,8 @@ export function GeneratePdfButton({ cards, onError }: GeneratePdfButtonProps) {
           <div className="grid gap-2 rounded-lg border border-emerald-200 bg-emerald-50 p-3">
             <div className="flex items-center justify-between gap-3">
               <div>
-            <p className="text-sm font-black text-stone-950">FULL HD para impressao</p>
-            <p className="text-xs font-bold text-emerald-800">R$ 4,99</p>
+                <p className="text-sm font-black text-stone-950">FULL HD para impressao</p>
+                <p className="text-xs font-bold text-emerald-800">R$ 4,99</p>
               </div>
               {isPaymentApproved ? <CheckCircle2 className="text-emerald-800" size={22} /> : <QrCode className="text-emerald-800" size={22} />}
             </div>
