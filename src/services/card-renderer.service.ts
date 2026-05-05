@@ -187,6 +187,8 @@ const PENDULUM_EFFECT_FONT_LIST_TCG: FontSizeData[] = [
 const CONDENSE_TOLERANCE_STRICT = 0.685;
 const DEFAULT_EFFECT_SIZE_LEVEL = 3;
 const NAME_LETTER_SPACING_RATIO = 0.028;
+const SPELL_TRAP_SUBFAMILY_TEXT_GAP = 4;
+const SPELL_TRAP_SUBFAMILY_BRACKET_GAP = 4;
 
 const textWidthCache = new Map<string, Promise<number>>();
 
@@ -427,8 +429,9 @@ async function fitSingleLine(
   while (fittedSize > safeMinFontSize) {
     const letterSpacing = Math.max(0, fittedSize * letterSpacingRatio);
     const letterSpacingWidth = Math.max(0, [...text].length - 1) * letterSpacing;
-    const width = ((await measureTextWidth(text, fittedSize, font)) + letterSpacingWidth) * widthAdjustment;
-    const scaleX = Math.min(1, maxWidth / Math.max(1, width));
+    const width = (await measureTextWidth(text, fittedSize, font)) + letterSpacingWidth;
+    const fitWidth = width * widthAdjustment;
+    const scaleX = Math.min(1, maxWidth / Math.max(1, fitWidth));
 
     if (scaleX >= minScaleX) {
       return { fontSize: fittedSize, scaleX, width, targetWidth: width * scaleX, letterSpacing };
@@ -439,12 +442,15 @@ async function fitSingleLine(
 
   const letterSpacing = Math.max(0, fittedSize * letterSpacingRatio);
   const letterSpacingWidth = Math.max(0, [...text].length - 1) * letterSpacing;
-  const width = ((await measureTextWidth(text, fittedSize, font)) + letterSpacingWidth) * widthAdjustment;
+  const width = (await measureTextWidth(text, fittedSize, font)) + letterSpacingWidth;
+  const fitWidth = width * widthAdjustment;
+  const scaleX = Math.min(1, maxWidth / Math.max(1, fitWidth));
+
   return {
     fontSize: fittedSize,
-    scaleX: Math.min(1, maxWidth / Math.max(1, width)),
+    scaleX,
     width,
-    targetWidth: width * Math.min(1, maxWidth / Math.max(1, width)),
+    targetWidth: width * scaleX,
     letterSpacing,
   };
 }
@@ -624,13 +630,13 @@ function linkArrowPositions(markers?: string[], renderScale: RenderScale = 1): A
 
 function spellTrapSubfamilyPlacement(layout: CardLayout, renderScale: RenderScale = 1): { iconLeft: number; iconTop: number; closeBracketX: number; textRightX: number } {
   const closeBracketX = Math.round(Math.min(layout.spellTrapTypeNoSubfamily.rightX - scaledNumber(20, renderScale), layout.width - scaledNumber(92, renderScale)));
-  const iconLeft = Math.round(closeBracketX - layout.subfamily.size - scaledNumber(4, renderScale));
+  const iconLeft = Math.round(closeBracketX - layout.subfamily.size - scaledNumber(SPELL_TRAP_SUBFAMILY_BRACKET_GAP, renderScale));
 
   return {
     iconLeft,
     iconTop: Math.round(layout.subfamily.y),
     closeBracketX,
-    textRightX: iconLeft + scaledNumber(12, renderScale),
+    textRightX: iconLeft - scaledNumber(SPELL_TRAP_SUBFAMILY_TEXT_GAP, renderScale),
   };
 }
 
