@@ -1,7 +1,7 @@
 "use client";
 
 import { CheckCircle2, Copy, FileDown, Loader2, QrCode } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { downloadDeckPdf } from "@/services/pdf-generator.service";
 import type { DeckCard } from "@/types/deck.types";
 
@@ -36,6 +36,11 @@ async function waitForMercadoPagoDeviceId(): Promise<string | undefined> {
 }
 
 export function GeneratePdfButton({ cards, onError }: GeneratePdfButtonProps) {
+  const deckSignature = useMemo(
+    () => cards.map((card) => `${card.deckType}:${card.instanceId}:${card.id}`).join("|"),
+    [cards],
+  );
+  const previousDeckSignature = useRef(deckSignature);
   const [isOpen, setIsOpen] = useState(false);
   const [isGeneratingFree, setIsGeneratingFree] = useState(false);
   const [isGeneratingFullHd, setIsGeneratingFullHd] = useState(false);
@@ -44,6 +49,20 @@ export function GeneratePdfButton({ cards, onError }: GeneratePdfButtonProps) {
   const [payerName, setPayerName] = useState("");
   const [payment, setPayment] = useState<PixPayment | null>(null);
   const [paymentMessage, setPaymentMessage] = useState("");
+
+  useEffect(() => {
+    if (previousDeckSignature.current === deckSignature) {
+      return;
+    }
+
+    previousDeckSignature.current = deckSignature;
+
+    if (payment) {
+      setPayment(null);
+      setIsCheckingPayment(false);
+      setPaymentMessage("Deck alterado. Gere um novo Pix para baixar em FULL HD.");
+    }
+  }, [deckSignature, payment]);
 
   async function handleDownloadFree() {
     setIsGeneratingFree(true);
