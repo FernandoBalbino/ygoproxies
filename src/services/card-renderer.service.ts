@@ -20,7 +20,7 @@ const EFFECT_BULLET_SPACE_AFTER = 7;
 const EFFECT_STAT_SEPARATOR = {
   leftX: 64.8,
   rightX: 748.8,
-  yOffsetFromAtkBaseline: 29,
+  yOffsetFromAtkBaseline: 31,
   strokeWidth: 2.2,
 } as const;
 const PENDULUM_ARTWORK = { x: 56, y: 213, width: 702, height: 530 } as const;
