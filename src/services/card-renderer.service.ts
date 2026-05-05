@@ -18,10 +18,11 @@ const HARD_MIN_FONT_SIZE = 5;
 const PENDULUM_ARTWORK = { x: 56, y: 213, width: 702, height: 530 } as const;
 const PENDULUM_CLEAR_AREA = { left: 56, top: 213, width: 702, height: 910 } as const;
 const PENDULUM_EFFECT_BACKGROUND = { x: 55, y: 738, width: 705, height: 147 } as const;
-const PENDULUM_EFFECT_TEXT = { x: 129, y: 746.29, maxWidth: 555.47, maxHeight: 122.6 } as const;
+const PENDULUM_EFFECT_TEXT = { x: 129, y: 767, maxWidth: 555.47, maxHeight: 104 } as const;
 const PENDULUM_SCALE = { blueX: 84.4, redX: 728, y: 848.5, fontSize: 56.5 } as const;
 const PENDULUM_SCALE_ICON = { x: 0, y: 750 } as const;
 const PENDULUM_BORDER = { x: 30, y: 185 } as const;
+const PENDULUM_ARTLESS_BORDER_CLEAR_HEIGHT = 738;
 
 const CARD_FONTS = {
   name: {
@@ -575,6 +576,41 @@ async function buildImageAssetWithClearedArea(
     .toBuffer();
 }
 
+async function buildPendulumBorderAsset(): Promise<Buffer> {
+  const clearTopMask = Buffer.from(`
+    <svg width="${DEFAULT_CARD_LAYOUT.width}" height="${DEFAULT_CARD_LAYOUT.height}" xmlns="http://www.w3.org/2000/svg">
+      <rect x="0" y="0" width="${DEFAULT_CARD_LAYOUT.width}" height="${PENDULUM_ARTLESS_BORDER_CLEAR_HEIGHT}" fill="white" />
+    </svg>
+  `);
+
+  return sharp({
+    create: {
+      width: DEFAULT_CARD_LAYOUT.width,
+      height: DEFAULT_CARD_LAYOUT.height,
+      channels: 4,
+      background: { r: 0, g: 0, b: 0, alpha: 0 },
+    },
+  })
+    .composite([
+      {
+        input: await buildImageAsset("frame-pendulum/border-pendulum-medium-base-artless.png"),
+        left: PENDULUM_BORDER.x,
+        top: PENDULUM_BORDER.y,
+      },
+      {
+        input: clearTopMask,
+        blend: "dest-out",
+      },
+      {
+        input: await buildImageAsset("frame-pendulum/border-pendulum-medium-base.png"),
+        left: PENDULUM_BORDER.x,
+        top: PENDULUM_BORDER.y,
+      },
+    ])
+    .png()
+    .toBuffer();
+}
+
 async function buildImagePatch(relativePath: string, left: number, top: number, width: number, height: number): Promise<Buffer> {
   return sharp(assetPath(relativePath))
     .extract({ left, top, width, height })
@@ -774,6 +810,14 @@ export async function renderCardImage(card: NormalizedCard, sourceImageBuffer: B
   const cardBorder = await optionalAsset("frame/card-border-normal.png", layout.width, layout.height);
   if (cardBorder) composites.push({ input: cardBorder, left: 0, top: 0 });
 
+  if (isPendulum) {
+    composites.push({
+      input: artworkBuffer,
+      left: artworkLayout.x,
+      top: artworkLayout.y,
+    });
+  }
+
   const nameBackground = await optionalAsset(`background/background-name-${frame}.png`);
   if (nameBackground) composites.push({ input: nameBackground, left: 0, top: 0 });
 
@@ -795,8 +839,10 @@ export async function renderCardImage(card: NormalizedCard, sourceImageBuffer: B
     }
   }
 
-  const effectBorder = await optionalAsset("frame/effect-border-base.png");
-  if (effectBorder) composites.push({ input: effectBorder, left: 35, top: 860 });
+  if (!isPendulum) {
+    const effectBorder = await optionalAsset("frame/effect-border-base.png");
+    if (effectBorder) composites.push({ input: effectBorder, left: 35, top: 860 });
+  }
 
   if (isPendulum) {
     const pendulumScaleIcon = await optionalAsset("frame-pendulum/pendulum-scale-medium.png");
@@ -808,14 +854,11 @@ export async function renderCardImage(card: NormalizedCard, sourceImageBuffer: B
       });
     }
 
-    const pendulumBorder = await optionalAsset("frame-pendulum/border-pendulum-medium-base.png");
-    if (pendulumBorder) {
-      composites.push({
-        input: pendulumBorder,
-        left: PENDULUM_BORDER.x,
-        top: PENDULUM_BORDER.y,
-      });
-    }
+    composites.push({
+      input: await buildPendulumBorderAsset(),
+      left: 0,
+      top: 0,
+    });
   } else {
     const artBorderSource = frame === "xyz" ? "frame/art-border-xyz.png" : "frame/art-border-base.png";
     const artBorder = await optionalAsset(artBorderSource);
