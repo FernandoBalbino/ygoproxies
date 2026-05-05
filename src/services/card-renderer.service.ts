@@ -22,6 +22,7 @@ const EFFECT_STAT_SEPARATOR = {
   rightX: 748.8,
   yOffsetFromAtkBaseline: 31,
   strokeWidth: 2.2,
+  textGap: 2,
 } as const;
 const PENDULUM_ARTWORK = { x: 56, y: 213, width: 702, height: 530 } as const;
 const PENDULUM_CLEAR_AREA = { left: 56, top: 213, width: 702, height: 910 } as const;
@@ -917,10 +918,17 @@ async function buildTextOverlay(card: NormalizedCard, layout: CardLayout, render
     : isSpellOrTrap(card)
       ? EFFECT_FONT_LIST_TCG
       : EFFECT_FONT_LIST_TCG_TYPE_STAT;
+  const statSeparatorY = layout.atkDef.y - scaledNumber(EFFECT_STAT_SEPARATOR.yOffsetFromAtkBaseline, renderScale);
+  const descriptionMaxHeight = isMonster(card)
+    ? Math.max(
+        descLayout.lineHeight,
+        statSeparatorY - scaledNumber(EFFECT_STAT_SEPARATOR.textGap, renderScale) - descLayout.y,
+      )
+    : descLayout.maxHeight;
   const description = await fitTextBlock(
     card.desc,
     descLayout.maxWidth,
-    descLayout.maxHeight,
+    descriptionMaxHeight,
     descFont,
     scaleFontList(descFontList, renderScale),
   );
@@ -972,7 +980,6 @@ async function buildTextOverlay(card: NormalizedCard, layout: CardLayout, render
     description.bulletOffset,
     description.bulletSpaceAfter,
   );
-  const statSeparatorY = layout.atkDef.y - scaledNumber(EFFECT_STAT_SEPARATOR.yOffsetFromAtkBaseline, renderScale);
   const statSeparatorLine = isMonster(card)
     ? `<line x1="${scaledNumber(EFFECT_STAT_SEPARATOR.leftX, renderScale)}" y1="${statSeparatorY}" x2="${scaledNumber(EFFECT_STAT_SEPARATOR.rightX, renderScale)}" y2="${statSeparatorY}" class="stat-separator" stroke-width="${scaledNumber(EFFECT_STAT_SEPARATOR.strokeWidth, renderScale)}" />`
     : "";
