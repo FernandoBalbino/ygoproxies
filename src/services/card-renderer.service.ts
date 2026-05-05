@@ -196,6 +196,10 @@ function isPendulumCard(card: NormalizedCard): boolean {
     || card.typeline.some((term) => term.toLowerCase() === "pendulum" || term.toLowerCase() === "pendulo");
 }
 
+function pendulumBottomFrameKey(): string {
+  return "spell";
+}
+
 function isSpellOrTrap(card: NormalizedCard): boolean {
   return card.frameType === "spell" || card.frameType === "trap";
 }
@@ -738,6 +742,7 @@ export async function renderCardImage(card: NormalizedCard, sourceImageBuffer: B
 
   const frame = frameKey(card.frameType);
   const isPendulum = isPendulumCard(card);
+  const bottomFrame = isPendulum ? pendulumBottomFrameKey() : frame;
   const artworkLayout = isPendulum ? PENDULUM_ARTWORK : layout.artwork;
   const artworkBuffer = await sharp(sourceImageBuffer)
     .resize(artworkLayout.width, artworkLayout.height, { fit: "cover", position: "center" })
@@ -760,7 +765,7 @@ export async function renderCardImage(card: NormalizedCard, sourceImageBuffer: B
 
   if (isPendulum) {
     composites.push({
-      input: await buildImageAsset(`frame-pendulum/frame-pendulum-${frame}.png`, layout.width, layout.height),
+      input: await buildImageAsset(`frame-pendulum/frame-pendulum-${bottomFrame}.png`, layout.width, layout.height),
       left: 0,
       top: 0,
     });
@@ -772,12 +777,12 @@ export async function renderCardImage(card: NormalizedCard, sourceImageBuffer: B
   const nameBackground = await optionalAsset(`background/background-name-${frame}.png`);
   if (nameBackground) composites.push({ input: nameBackground, left: 0, top: 0 });
 
-  const effectBackground = await optionalAsset(`background/background-text-${frame}.png`);
+  const effectBackground = await optionalAsset(`background/background-text-${bottomFrame}.png`);
   if (effectBackground) composites.push({ input: effectBackground, left: 54, top: 884 });
 
   if (isPendulum) {
     const pendulumBackground = await optionalAsset(
-      `background/background-pendulum-${frame}.png`,
+      `background/background-pendulum-${bottomFrame}.png`,
       PENDULUM_EFFECT_BACKGROUND.width,
       PENDULUM_EFFECT_BACKGROUND.height,
     );
