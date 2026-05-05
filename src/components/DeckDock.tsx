@@ -19,6 +19,10 @@ const DECK_LABELS: Record<DeckType, string> = {
   extra: "Extra Deck",
 };
 
+function countCards(cards: DeckState[DeckType]): number {
+  return cards.reduce((total, card) => total + card.quantity, 0);
+}
+
 function DeckDockButton({
   deckType,
   count,
@@ -55,6 +59,7 @@ function DeckDockButton({
 export function DeckDock({ deck, activeDeck, onOpenDeck, onCloseDeck, onRemoveCard }: DeckDockProps) {
   const activeCards = activeDeck ? deck[activeDeck] : [];
   const activeTitle = activeDeck ? DECK_LABELS[activeDeck] : "";
+  const activeCardCount = countCards(activeCards);
 
   useEffect(() => {
     if (!activeDeck) {
@@ -82,8 +87,8 @@ export function DeckDock({ deck, activeDeck, onOpenDeck, onCloseDeck, onRemoveCa
     <>
       <footer className="fixed inset-x-0 bottom-0 z-40 border-t border-stone-200 bg-stone-50/95 shadow-[0_-12px_30px_rgba(28,25,23,0.12)] backdrop-blur">
         <div className="mx-auto grid w-full max-w-xl grid-cols-2 gap-2 px-3 py-2 pb-[calc(0.5rem+env(safe-area-inset-bottom))] sm:max-w-2xl sm:px-5 md:max-w-4xl">
-          <DeckDockButton deckType="main" count={deck.main.length} onClick={() => onOpenDeck("main")} />
-          <DeckDockButton deckType="extra" count={deck.extra.length} onClick={() => onOpenDeck("extra")} />
+          <DeckDockButton deckType="main" count={countCards(deck.main)} onClick={() => onOpenDeck("main")} />
+          <DeckDockButton deckType="extra" count={countCards(deck.extra)} onClick={() => onOpenDeck("extra")} />
         </div>
       </footer>
 
@@ -107,7 +112,7 @@ export function DeckDock({ deck, activeDeck, onOpenDeck, onCloseDeck, onRemoveCa
                 <h2 id="deck-modal-title" className="truncate text-lg font-black text-stone-950">{activeTitle}</h2>
               </div>
               <div className="flex shrink-0 items-center gap-2">
-                <span className="rounded-full bg-stone-950 px-3 py-1 text-xs font-black text-white">{activeCards.length}</span>
+                <span className="rounded-full bg-stone-950 px-3 py-1 text-xs font-black text-white">{activeCardCount}</span>
                 <button
                   type="button"
                   onClick={onCloseDeck}

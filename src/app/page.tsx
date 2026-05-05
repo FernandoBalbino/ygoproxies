@@ -7,8 +7,11 @@ import { DeckDock } from "@/components/DeckDock";
 import { GeneratePdfButton } from "@/components/GeneratePdfButton";
 import { MercadoPagoFrontendSdk } from "@/components/MercadoPagoFrontendSdk";
 import { SearchCardForm } from "@/components/SearchCardForm";
+import { SearchHintModal } from "@/components/SearchHintModal";
 import type { DeckType, NormalizedCard, RenderedCard } from "@/types/card.types";
 import type { DeckCard, DeckState } from "@/types/deck.types";
+
+const MAX_CARD_COPIES = 3;
 
 function createInstanceId(cardId: number): string {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
@@ -16,6 +19,27 @@ function createInstanceId(cardId: number): string {
   }
 
   return `${cardId}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+
+function normalizeCardQuantity(quantity: number): number {
+  if (!Number.isFinite(quantity)) {
+    return 1;
+  }
+
+  return Math.min(MAX_CARD_COPIES, Math.max(1, Math.trunc(quantity)));
+}
+
+function isSameDeckCard(card: DeckCard, renderedCard: RenderedCard, renderLanguage: "pt" | "en"): boolean {
+  return card.id === renderedCard.id && (card.renderLanguage ?? "pt") === renderLanguage;
+}
+
+function expandDeckCards(cards: DeckCard[]): DeckCard[] {
+  return cards.flatMap((card) =>
+    Array.from({ length: card.quantity }, (_, index) => ({
+      ...card,
+      instanceId: `${card.instanceId}-${index + 1}`,
+    })),
+  );
 }
 
 export default function Home() {
@@ -30,7 +54,7 @@ export default function Home() {
   const [isRendering, setIsRendering] = useState(false);
   const [error, setError] = useState("");
 
-  const allDeckCards = useMemo(() => [...deck.main, ...deck.extra], [deck]);
+  const allDeckCards = useMemo(() => expandDeckCards([...deck.main, ...deck.extra]), [deck]);
   const closeDeck = useCallback(() => setActiveDeck(null), []);
 
   async function handleSearch() {
@@ -97,22 +121,57 @@ export default function Home() {
     }
   }
 
-  function handleAddToDeck() {
+  function handleAddToDeck(quantity: number) {
     if (!renderedCard?.deckType) {
       return;
     }
 
-    const deckCard: DeckCard = {
-      ...renderedCard,
-      deckType: renderedCard.deckType,
-      instanceId: createInstanceId(renderedCard.id),
-      renderLanguage: language,
-    };
+    const deckType = renderedCard.deckType;
+    const requestedQuantity = normalizeCardQuantity(quantity);
+    const existingQuantity = deck[deckType].find((card) => isSameDeckCard(card, renderedCard, language))?.quantity ?? 0;
 
-    setDeck((current) => ({
-      ...current,
-      [deckCard.deckType]: [...current[deckCard.deckType], deckCard],
-    }));
+    if (existingQuantity >= MAX_CARD_COPIES) {
+      setError("Esta carta ja esta com 3 copias no deck.");
+      return;
+    }
+
+    const instanceId = createInstanceId(renderedCard.id);
+    setError("");
+
+    setDeck((current) => {
+      const currentDeck = current[deckType];
+      const existingCard = currentDeck.find((card) => isSameDeckCard(card, renderedCard, language));
+      const availableCopies = MAX_CARD_COPIES - (existingCard?.quantity ?? 0);
+      const quantityToAdd = Math.min(requestedQuantity, availableCopies);
+
+      if (quantityToAdd <= 0) {
+        return current;
+      }
+
+      if (existingCard) {
+        return {
+          ...current,
+          [deckType]: currentDeck.map((card) =>
+            card.instanceId === existingCard.instanceId
+              ? { ...card, ...renderedCard, deckType, renderLanguage: language, quantity: card.quantity + quantityToAdd }
+              : card,
+          ),
+        };
+      }
+
+      const deckCard: DeckCard = {
+        ...renderedCard,
+        deckType,
+        instanceId,
+        quantity: quantityToAdd,
+        renderLanguage: language,
+      };
+
+      return {
+        ...current,
+        [deckType]: [...currentDeck, deckCard],
+      };
+    });
   }
 
   function handleRemoveCard(instanceId: string) {
@@ -124,6 +183,8 @@ export default function Home() {
 
   return (
     <>
+      <SearchHintModal />
+
       <main className="mx-auto flex min-h-screen w-full max-w-xl flex-col gap-5 px-3 py-4 pb-32 sm:max-w-2xl sm:px-5 sm:py-5 md:max-w-4xl md:pb-36">
         <MercadoPagoFrontendSdk />
 
@@ -168,6 +229,7 @@ export default function Home() {
               selectedCard={selectedCard}
               renderedCard={renderedCard}
               isRendering={isRendering}
+              maxQuantity={MAX_CARD_COPIES}
               onAddToDeck={handleAddToDeck}
             />
 
