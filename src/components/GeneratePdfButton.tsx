@@ -204,7 +204,7 @@ export function GeneratePdfButton({ cards, onError }: GeneratePdfButtonProps) {
             className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-lg border border-stone-300 bg-stone-50 px-4 text-sm font-black text-stone-950 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-60"
           >
             {isGeneratingFree ? <Loader2 className="animate-spin" size={18} /> : <FileDown size={18} />}
-            Baixar gratis 70%
+            Baixar gratis com qualidade inferior
           </button>
 
           <div className="grid gap-2 rounded-lg border border-emerald-200 bg-emerald-50 p-3">

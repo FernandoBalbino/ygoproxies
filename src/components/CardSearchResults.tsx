@@ -29,17 +29,24 @@ export function CardSearchResults({ cards, selectedCardId, isLoading, onSelectCa
               key={card.id}
               type="button"
               onClick={() => onSelectCard(card)}
-              className={`rounded-lg border p-3 text-left transition active:scale-[0.99] ${
+              className={`flex items-center gap-3 rounded-lg border p-2 text-left transition active:scale-[0.99] ${
                 isSelected
                   ? "border-emerald-800 bg-emerald-50"
                   : "border-stone-200 bg-white"
               }`}
             >
-              <span className="block text-base font-black text-stone-950">{card.name}</span>
-              <span className="mt-1 block text-sm font-semibold text-stone-600">{card.humanReadableCardType}</span>
-              {!card.isSupported ? (
-                <span className="mt-2 block text-sm font-bold text-red-700">{card.unsupportedReason}</span>
-              ) : null}
+              <img
+                src={card.croppedImageUrl || card.fullImageUrl || card.templatePath}
+                alt={card.name}
+                className="h-16 w-11 shrink-0 rounded object-cover"
+              />
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-sm font-black text-stone-950">{card.name}</span>
+                <span className="block truncate text-xs font-semibold text-stone-600">{card.humanReadableCardType}</span>
+                {!card.isSupported ? (
+                  <span className="mt-1 block truncate text-xs font-bold text-red-700">{card.unsupportedReason}</span>
+                ) : null}
+              </span>
             </button>
           );
         })}
