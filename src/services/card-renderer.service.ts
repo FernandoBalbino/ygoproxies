@@ -15,6 +15,14 @@ const TEXT_COLOR = "#010101";
 const LIGHT_TEXT_COLOR = "#ffffff";
 const BASE_FILL_COLOR = "#404040";
 const HARD_MIN_FONT_SIZE = 5;
+const EFFECT_BULLET = "●";
+const EFFECT_BULLET_SPACE_AFTER = 7;
+const EFFECT_STAT_SEPARATOR = {
+  leftX: 64.8,
+  rightX: 748.8,
+  yOffsetFromAtkBaseline: 29,
+  strokeWidth: 2.2,
+} as const;
 const PENDULUM_ARTWORK = { x: 56, y: 213, width: 702, height: 530 } as const;
 const PENDULUM_CLEAR_AREA = { left: 56, top: 213, width: 702, height: 910 } as const;
 const PENDULUM_EFFECT_BACKGROUND = { x: 55, y: 738, width: 705, height: 147 } as const;
@@ -70,6 +78,9 @@ type FontSizeData = {
   fontSize: number;
   lineHeight: number;
   lineCount: number;
+  bulletWidth?: number;
+  bulletOffset?: number;
+  bulletSpaceAfter?: number;
 };
 
 type FittedSingleLine = {
@@ -86,7 +97,14 @@ type FittedTextBlock = {
   lineHeight: number;
   scaleX: number;
   lines: string[];
+  bulletWidth?: number;
+  bulletOffset?: number;
+  bulletSpaceAfter?: number;
 };
+
+type BulletTextToken =
+  | { type: "text"; value: string }
+  | { type: "bullet" };
 
 type RenderScale = 1 | 2;
 
@@ -117,6 +135,11 @@ function scaleFontList(fontList: FontSizeData[], scale: RenderScale): FontSizeDa
     ...item,
     fontSize: scaledNumber(item.fontSize, scale),
     lineHeight: scaledNumber(item.lineHeight, scale),
+    ...(typeof item.bulletWidth === "number" ? { bulletWidth: scaledNumber(item.bulletWidth, scale) } : {}),
+    ...(typeof item.bulletOffset === "number" ? { bulletOffset: scaledNumber(item.bulletOffset, scale) } : {}),
+    ...(typeof item.bulletWidth === "number"
+      ? { bulletSpaceAfter: scaledNumber(item.bulletSpaceAfter ?? EFFECT_BULLET_SPACE_AFTER, scale) }
+      : {}),
   }));
 }
 
@@ -142,46 +165,46 @@ function scaleLayout(layout: CardLayout, scale: RenderScale): CardLayout {
 }
 
 const EFFECT_FONT_LIST_TCG: FontSizeData[] = [
-  { fontSize: 40.2, lineHeight: 42.1, lineCount: 5 },
-  { fontSize: 33.2, lineHeight: 35.1, lineCount: 6 },
-  { fontSize: 28.2, lineHeight: 30.3, lineCount: 7 },
-  { fontSize: 24.38, lineHeight: 24.7, lineCount: 8 },
-  { fontSize: 19.94, lineHeight: 21.15, lineCount: 10 },
-  { fontSize: 18.5, lineHeight: 19.2, lineCount: 11 },
-  { fontSize: 17, lineHeight: 17.6, lineCount: 12 },
-  { fontSize: 15.6, lineHeight: 16.3, lineCount: 13 },
+  { fontSize: 40.2, lineHeight: 42.1, lineCount: 5, bulletWidth: 38, bulletOffset: 1 },
+  { fontSize: 33.2, lineHeight: 35.1, lineCount: 6, bulletWidth: 30 },
+  { fontSize: 28.2, lineHeight: 30.3, lineCount: 7, bulletWidth: 26 },
+  { fontSize: 24.38, lineHeight: 24.7, lineCount: 8, bulletWidth: 23 },
+  { fontSize: 19.94, lineHeight: 21.15, lineCount: 10, bulletWidth: 23, bulletOffset: 1 },
+  { fontSize: 18.5, lineHeight: 19.2, lineCount: 11, bulletWidth: 21, bulletOffset: 1 },
+  { fontSize: 17, lineHeight: 17.6, lineCount: 12, bulletWidth: 19, bulletOffset: 1 },
+  { fontSize: 15.6, lineHeight: 16.3, lineCount: 13, bulletWidth: 17, bulletOffset: 1 },
 ];
 
 const EFFECT_FONT_LIST_TCG_TYPE_STAT: FontSizeData[] = [
-  { fontSize: 45.2, lineHeight: 48.1, lineCount: 3 },
-  { fontSize: 34.2, lineHeight: 36.5, lineCount: 4 },
-  { fontSize: 27.2, lineHeight: 29.5, lineCount: 5 },
-  { fontSize: 24.3, lineHeight: 24.7, lineCount: 6 },
-  { fontSize: 19.95, lineHeight: 21.3, lineCount: 7 },
-  { fontSize: 18.8, lineHeight: 18.8, lineCount: 8 },
-  { fontSize: 16.7, lineHeight: 16.7, lineCount: 9 },
-  { fontSize: 15, lineHeight: 15, lineCount: 10 },
+  { fontSize: 45.2, lineHeight: 48.1, lineCount: 3, bulletWidth: 40, bulletOffset: 1 },
+  { fontSize: 34.2, lineHeight: 36.5, lineCount: 4, bulletWidth: 30 },
+  { fontSize: 27.2, lineHeight: 29.5, lineCount: 5, bulletWidth: 26 },
+  { fontSize: 24.3, lineHeight: 24.7, lineCount: 6, bulletWidth: 23 },
+  { fontSize: 19.95, lineHeight: 21.3, lineCount: 7, bulletWidth: 23, bulletOffset: 1 },
+  { fontSize: 18.8, lineHeight: 18.8, lineCount: 8, bulletWidth: 23, bulletOffset: 1 },
+  { fontSize: 16.7, lineHeight: 16.7, lineCount: 9, bulletWidth: 19, bulletOffset: 1 },
+  { fontSize: 15, lineHeight: 15, lineCount: 10, bulletWidth: 19, bulletOffset: 2 },
 ];
 
 const NORMAL_FONT_LIST_TCG_TYPE_STAT: FontSizeData[] = [
-  { fontSize: 44.2, lineHeight: 47.1, lineCount: 3 },
-  { fontSize: 34.2, lineHeight: 36.5, lineCount: 4 },
-  { fontSize: 27.2, lineHeight: 29.5, lineCount: 5 },
-  { fontSize: 24.5, lineHeight: 24.7, lineCount: 6 },
-  { fontSize: 19.28, lineHeight: 21.3, lineCount: 7 },
-  { fontSize: 17.78, lineHeight: 18.9, lineCount: 8 },
-  { fontSize: 15.46, lineHeight: 16.8, lineCount: 9 },
-  { fontSize: 12.99, lineHeight: 15, lineCount: 10 },
+  { fontSize: 44.2, lineHeight: 47.1, lineCount: 3, bulletWidth: 40, bulletOffset: 1 },
+  { fontSize: 34.2, lineHeight: 36.5, lineCount: 4, bulletWidth: 30 },
+  { fontSize: 27.2, lineHeight: 29.5, lineCount: 5, bulletWidth: 26 },
+  { fontSize: 24.5, lineHeight: 24.7, lineCount: 6, bulletWidth: 23 },
+  { fontSize: 19.28, lineHeight: 21.3, lineCount: 7, bulletWidth: 23 },
+  { fontSize: 17.78, lineHeight: 18.9, lineCount: 8, bulletWidth: 23 },
+  { fontSize: 15.46, lineHeight: 16.8, lineCount: 9, bulletWidth: 19, bulletOffset: 1 },
+  { fontSize: 12.99, lineHeight: 15, lineCount: 10, bulletWidth: 19, bulletOffset: 2 },
 ];
 
 const PENDULUM_EFFECT_FONT_LIST_TCG: FontSizeData[] = [
-  { fontSize: 50.3, lineHeight: 56.35, lineCount: 2 },
-  { fontSize: 35.3, lineHeight: 38.85, lineCount: 3 },
-  { fontSize: 26.3, lineHeight: 29.35, lineCount: 4 },
-  { fontSize: 24.3, lineHeight: 24.35, lineCount: 5 },
-  { fontSize: 19.5, lineHeight: 20.23, lineCount: 6 },
-  { fontSize: 17, lineHeight: 17.4, lineCount: 7 },
-  { fontSize: 14.7, lineHeight: 15.32, lineCount: 8 },
+  { fontSize: 50.3, lineHeight: 56.35, lineCount: 2, bulletWidth: 41 },
+  { fontSize: 35.3, lineHeight: 38.85, lineCount: 3, bulletWidth: 34, bulletOffset: 2 },
+  { fontSize: 26.3, lineHeight: 29.35, lineCount: 4, bulletWidth: 27, bulletOffset: 3 },
+  { fontSize: 24.3, lineHeight: 24.35, lineCount: 5, bulletWidth: 23 },
+  { fontSize: 19.5, lineHeight: 20.23, lineCount: 6, bulletWidth: 19 },
+  { fontSize: 17, lineHeight: 17.4, lineCount: 7, bulletWidth: 18, bulletOffset: 1 },
+  { fontSize: 14.7, lineHeight: 15.32, lineCount: 8, bulletWidth: 16 },
 ];
 
 const CONDENSE_TOLERANCE_STRICT = 0.685;
@@ -324,40 +347,81 @@ function estimatedTextWidth(text: string, fontSize: number): number {
   }, 0);
 }
 
-async function measureTextWidth(text: string, fontSize: number, font: CardFont): Promise<number> {
+function splitDrawableBulletText(text: string): BulletTextToken[] {
+  const tokens: BulletTextToken[] = [];
+  let cursor = 0;
+
+  while (cursor < text.length) {
+    const bulletIndex = text.indexOf(EFFECT_BULLET, cursor);
+    if (bulletIndex === -1) {
+      tokens.push({ type: "text", value: text.slice(cursor) });
+      break;
+    }
+
+    if (bulletIndex > cursor) {
+      tokens.push({ type: "text", value: text.slice(cursor, bulletIndex) });
+    }
+
+    tokens.push({ type: "bullet" });
+    cursor = bulletIndex + EFFECT_BULLET.length;
+
+    if (text[cursor] === " ") {
+      cursor += 1;
+    }
+  }
+
+  return tokens.filter((token) => token.type === "bullet" || token.value.length > 0);
+}
+
+function defaultBulletWidth(fontSize: number): number {
+  return Math.max(16, Math.round(fontSize * 0.95));
+}
+
+async function measureTextWidth(text: string, fontSize: number, font: CardFont, bulletWidth?: number): Promise<number> {
   const measurableText = text || " ";
-  const cacheKey = `${font.family}|${fontSize}|${measurableText}`;
+  const resolvedBulletWidth = bulletWidth ?? defaultBulletWidth(fontSize);
+  const cacheKey = `${font.family}|${fontSize}|${resolvedBulletWidth}|${measurableText}`;
   const cachedWidth = textWidthCache.get(cacheKey);
 
   if (cachedWidth) {
     return cachedWidth;
   }
 
-  const measuredWidth = sharp({
-    text: {
-      text: escapePangoMarkup(measurableText),
-      font: `${font.family} ${fontSize}`,
-      fontfile: font.filePath,
-      rgba: true,
-      dpi: 72,
-      wrap: "none",
-    },
-  })
-    .metadata()
-    .then((metadata) => metadata.width ?? estimatedTextWidth(measurableText, fontSize))
-    .catch(() => estimatedTextWidth(measurableText, fontSize));
+  const measuredWidth = measurableText.includes(EFFECT_BULLET)
+    ? (async () => {
+        let width = 0;
+        for (const token of splitDrawableBulletText(measurableText)) {
+          width += token.type === "bullet"
+            ? resolvedBulletWidth
+            : await measureTextWidth(token.value, fontSize, font);
+        }
+        return width;
+      })()
+    : sharp({
+      text: {
+        text: escapePangoMarkup(measurableText),
+        font: `${font.family} ${fontSize}`,
+        fontfile: font.filePath,
+        rgba: true,
+        dpi: 72,
+        wrap: "none",
+      },
+    })
+      .metadata()
+      .then((metadata) => metadata.width ?? estimatedTextWidth(measurableText, fontSize))
+      .catch(() => estimatedTextWidth(measurableText, fontSize));
 
   textWidthCache.set(cacheKey, measuredWidth);
   return measuredWidth;
 }
 
-async function wrapLongToken(token: string, maxWidth: number, fontSize: number, font: CardFont): Promise<string[]> {
+async function wrapLongToken(token: string, maxWidth: number, fontSize: number, font: CardFont, bulletWidth?: number): Promise<string[]> {
   const pieces: string[] = [];
   let current = "";
 
   for (const char of [...token]) {
     const next = `${current}${char}`;
-    if (!current || (await measureTextWidth(next, fontSize, font)) <= maxWidth) {
+    if (!current || (await measureTextWidth(next, fontSize, font, bulletWidth)) <= maxWidth) {
       current = next;
     } else {
       pieces.push(current);
@@ -372,14 +436,14 @@ async function wrapLongToken(token: string, maxWidth: number, fontSize: number, 
   return pieces;
 }
 
-async function wrapParagraph(text: string, maxWidth: number, fontSize: number, font: CardFont): Promise<string[]> {
+async function wrapParagraph(text: string, maxWidth: number, fontSize: number, font: CardFont, bulletWidth?: number): Promise<string[]> {
   const words = text.trim().split(/\s+/).filter(Boolean);
   const lines: string[] = [];
   let current = "";
 
   for (const word of words) {
     const next = current ? `${current} ${word}` : word;
-    if ((await measureTextWidth(next, fontSize, font)) <= maxWidth) {
+    if ((await measureTextWidth(next, fontSize, font, bulletWidth)) <= maxWidth) {
       current = next;
       continue;
     }
@@ -388,7 +452,7 @@ async function wrapParagraph(text: string, maxWidth: number, fontSize: number, f
       lines.push(current);
     }
 
-    const wordPieces = await wrapLongToken(word, maxWidth, fontSize, font);
+    const wordPieces = await wrapLongToken(word, maxWidth, fontSize, font, bulletWidth);
     if (wordPieces.length > 1) {
       lines.push(...wordPieces.slice(0, -1));
     }
@@ -402,12 +466,12 @@ async function wrapParagraph(text: string, maxWidth: number, fontSize: number, f
   return lines;
 }
 
-async function wrapText(text: string, maxWidth: number, fontSize: number, font: CardFont): Promise<string[]> {
+async function wrapText(text: string, maxWidth: number, fontSize: number, font: CardFont, bulletWidth?: number): Promise<string[]> {
   const paragraphs = text.split(/\n+/);
   const wrappedParagraphs: string[][] = [];
 
   for (const paragraph of paragraphs) {
-    wrappedParagraphs.push(await wrapParagraph(paragraph, maxWidth, fontSize, font));
+    wrappedParagraphs.push(await wrapParagraph(paragraph, maxWidth, fontSize, font, bulletWidth));
   }
 
   return wrappedParagraphs.flat().filter(Boolean);
@@ -462,15 +526,16 @@ async function findCondenseRatio(
   font: CardFont,
   maxLines: number,
   tolerance: number,
+  bulletWidth?: number,
 ): Promise<{ lines: string[]; scaleX: number }> {
-  let bestLines = await wrapText(text, maxWidth, fontSize, font);
+  let bestLines = await wrapText(text, maxWidth, fontSize, font, bulletWidth);
   if (bestLines.length <= maxLines) {
     return { lines: bestLines, scaleX: 1 };
   }
 
   for (let median = 995; median >= Math.round(tolerance * 1000); median -= 5) {
     const scaleX = median / 1000;
-    const lines = await wrapText(text, maxWidth / scaleX, fontSize, font);
+    const lines = await wrapText(text, maxWidth / scaleX, fontSize, font, bulletWidth);
     if (lines.length <= maxLines) {
       return { lines, scaleX };
     }
@@ -501,6 +566,7 @@ async function fitTextBlock(
       font,
       lineCount,
       CONDENSE_TOLERANCE_STRICT,
+      fontSizeData.bulletWidth,
     );
 
     if (fitted.lines.length <= lineCount) {
@@ -510,6 +576,9 @@ async function fitTextBlock(
         lineHeight: fontSizeData.lineHeight,
         scaleX: fitted.scaleX,
         lines: fitted.lines,
+        bulletWidth: fontSizeData.bulletWidth,
+        bulletOffset: fontSizeData.bulletOffset,
+        bulletSpaceAfter: fontSizeData.bulletSpaceAfter ?? (fontSizeData.bulletWidth ? EFFECT_BULLET_SPACE_AFTER : undefined),
       };
     }
   }
@@ -517,7 +586,8 @@ async function fitTextBlock(
   const dynamicLineCount = Math.max(1, Math.ceil(maxHeight / 14));
   const dynamicFontSize = Math.max(HARD_MIN_FONT_SIZE, Math.floor(maxHeight / dynamicLineCount) - 1);
   const dynamicLineHeight = Math.max(dynamicFontSize + 1, Math.floor(maxHeight / dynamicLineCount));
-  const dynamic = await findCondenseRatio(text, maxWidth, dynamicFontSize, font, dynamicLineCount, 0.55);
+  const dynamicBulletWidth = defaultBulletWidth(dynamicFontSize);
+  const dynamic = await findCondenseRatio(text, maxWidth, dynamicFontSize, font, dynamicLineCount, 0.55, dynamicBulletWidth);
 
   return {
     font,
@@ -525,26 +595,85 @@ async function fitTextBlock(
     lineHeight: dynamicLineHeight,
     scaleX: dynamic.scaleX,
     lines: dynamic.lines.slice(0, dynamicLineCount),
+    bulletWidth: dynamicBulletWidth,
+    bulletOffset: 1,
+    bulletSpaceAfter: Math.min(EFFECT_BULLET_SPACE_AFTER, Math.max(2, dynamicBulletWidth * 0.35)),
   };
 }
 
-function textGroup(lines: string[], x: number, firstBaseline: number, fontSize: number, lineHeight: number, scaleX: number, className: string): string {
-  return lines
-    .map((line, index) => {
-      const y = firstBaseline + index * lineHeight;
-      return `<g transform="translate(${x}, 0) scale(${scaleX}, 1)"><text x="0" y="${y}" class="${className}" font-size="${fontSize}">${escapeXml(line)}</text></g>`;
-    })
-    .join("");
+async function textLineWithDrawnBullets(
+  line: string,
+  y: number,
+  fontSize: number,
+  font: CardFont,
+  className: string,
+  bulletWidth: number,
+  bulletOffset = 0,
+  bulletSpaceAfter = EFFECT_BULLET_SPACE_AFTER,
+): Promise<string> {
+  let cursorX = 0;
+  let markup = "";
+  const bulletRadius = Math.max(1, (bulletWidth - bulletSpaceAfter) / 2);
+
+  for (const token of splitDrawableBulletText(line)) {
+    if (token.type === "bullet") {
+      markup += `<circle cx="${cursorX + bulletRadius}" cy="${y + bulletOffset - 1 - bulletRadius}" r="${bulletRadius}" class="effect-bullet" />`;
+      cursorX += bulletWidth;
+      continue;
+    }
+
+    markup += `<text x="${cursorX}" y="${y}" class="${className}" font-size="${fontSize}">${escapeXml(token.value)}</text>`;
+    cursorX += await measureTextWidth(token.value, fontSize, font);
+  }
+
+  return markup;
 }
 
-function centeredTextGroup(
+async function textGroup(
+  lines: string[],
+  x: number,
+  firstBaseline: number,
+  fontSize: number,
+  lineHeight: number,
+  scaleX: number,
+  className: string,
+  font: CardFont,
+  bulletWidth?: number,
+  bulletOffset?: number,
+  bulletSpaceAfter?: number,
+): Promise<string> {
+  const lineMarkup = await Promise.all(lines.map(async (line, index) => {
+      const y = firstBaseline + index * lineHeight;
+      const content = line.includes(EFFECT_BULLET) && bulletWidth
+        ? await textLineWithDrawnBullets(line, y, fontSize, font, className, bulletWidth, bulletOffset, bulletSpaceAfter)
+        : `<text x="0" y="${y}" class="${className}" font-size="${fontSize}">${escapeXml(line)}</text>`;
+
+      return `<g transform="translate(${x}, 0) scale(${scaleX}, 1)">${content}</g>`;
+    }));
+
+  return lineMarkup.join("");
+}
+
+async function centeredTextGroup(
   textBlock: FittedTextBlock,
   box: { x: number; y: number; maxHeight: number },
   className: string,
-): string {
+): Promise<string> {
   const usedHeight = Math.max(textBlock.fontSize, textBlock.lines.length * textBlock.lineHeight);
   const firstBaseline = box.y + Math.max(0, (box.maxHeight - usedHeight) / 2) + textBlock.fontSize * 0.9;
-  return textGroup(textBlock.lines, box.x, firstBaseline, textBlock.fontSize, textBlock.lineHeight, textBlock.scaleX, className);
+  return textGroup(
+    textBlock.lines,
+    box.x,
+    firstBaseline,
+    textBlock.fontSize,
+    textBlock.lineHeight,
+    textBlock.scaleX,
+    className,
+    textBlock.font,
+    textBlock.bulletWidth,
+    textBlock.bulletOffset,
+    textBlock.bulletSpaceAfter,
+  );
 }
 
 function compressedText(
@@ -827,6 +956,26 @@ async function buildTextOverlay(card: NormalizedCard, layout: CardLayout, render
     `;
   })();
 
+  const pendulumDescriptionText = pendulumDescription
+    ? await centeredTextGroup(pendulumDescription, pendulumEffectText, "effect")
+    : "";
+  const descriptionText = await textGroup(
+    description.lines,
+    descLayout.x,
+    descLayout.y,
+    description.fontSize,
+    description.lineHeight,
+    description.scaleX,
+    "effect",
+    description.font,
+    description.bulletWidth,
+    description.bulletOffset,
+    description.bulletSpaceAfter,
+  );
+  const statSeparatorY = layout.atkDef.y - scaledNumber(EFFECT_STAT_SEPARATOR.yOffsetFromAtkBaseline, renderScale);
+  const statSeparatorLine = isMonster(card)
+    ? `<line x1="${scaledNumber(EFFECT_STAT_SEPARATOR.leftX, renderScale)}" y1="${statSeparatorY}" x2="${scaledNumber(EFFECT_STAT_SEPARATOR.rightX, renderScale)}" y2="${statSeparatorY}" class="stat-separator" stroke-width="${scaledNumber(EFFECT_STAT_SEPARATOR.strokeWidth, renderScale)}" />`
+    : "";
   const statLine = isMonster(card)
     ? `
       <text x="${scaledNumber(432.1, renderScale)}" y="${layout.atkDef.y}" class="stat-label" font-size="${scaledNumber(35.73, renderScale)}">ATK/</text>
@@ -860,6 +1009,13 @@ async function buildTextOverlay(card: NormalizedCard, layout: CardLayout, render
           font-family: ${svgFontFamily(description.font)};
           font-weight: normal;
         }
+        .effect-bullet {
+          fill: ${TEXT_COLOR};
+        }
+        .stat-separator {
+          stroke: ${TEXT_COLOR};
+          stroke-linecap: square;
+        }
         .stat-label {
           fill: ${TEXT_COLOR};
           font-family: ${svgFontFamily(CARD_FONTS.stat)};
@@ -880,12 +1036,13 @@ async function buildTextOverlay(card: NormalizedCard, layout: CardLayout, render
       ${compressedText(renderedName, layout.name.x, layout.name.y, name, "name")}
       ${typeLine ? compressedText(typeLineText(card), layout.typeLine.x, layout.typeLine.y, typeLine, "type") : ""}
       ${spellTrapTypeLine}
-      ${pendulumDescription ? centeredTextGroup(pendulumDescription, pendulumEffectText, "effect") : ""}
+      ${pendulumDescriptionText}
       ${isPendulum ? `
         <text x="${pendulumScale.blueX}" y="${pendulumScale.y}" class="pendulum-scale" font-size="${pendulumScale.fontSize}">${escapeXml(statText(card.pendulumScale ?? 0))}</text>
         <text x="${pendulumScale.redX}" y="${pendulumScale.y}" class="pendulum-scale" font-size="${pendulumScale.fontSize}">${escapeXml(statText(card.pendulumScale ?? 0))}</text>
       ` : ""}
-      ${textGroup(description.lines, descLayout.x, descLayout.y, description.fontSize, description.lineHeight, description.scaleX, "effect")}
+      ${descriptionText}
+      ${statSeparatorLine}
       ${statLine}
     </svg>
   `;
