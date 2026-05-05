@@ -19,6 +19,22 @@ interface PixPayment {
   ticketUrl: string;
 }
 
+function readMercadoPagoDeviceId(): string | undefined {
+  const input = document.getElementById("deviceId") as HTMLInputElement | null;
+  const deviceId = window.deviceId || window.MP_DEVICE_SESSION_ID || input?.value;
+  return deviceId?.trim() || undefined;
+}
+
+async function waitForMercadoPagoDeviceId(): Promise<string | undefined> {
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    const deviceId = readMercadoPagoDeviceId();
+    if (deviceId) return deviceId;
+    await new Promise((resolve) => window.setTimeout(resolve, 100));
+  }
+
+  return undefined;
+}
+
 export function GeneratePdfButton({ cards, onError }: GeneratePdfButtonProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [isGeneratingFree, setIsGeneratingFree] = useState(false);
@@ -55,6 +71,7 @@ export function GeneratePdfButton({ cards, onError }: GeneratePdfButtonProps) {
 
     try {
       const [firstName, ...lastNameParts] = payerName.trim().split(/\s+/).filter(Boolean);
+      const deviceId = await waitForMercadoPagoDeviceId();
       const response = await fetch("/api/mercado-pago/pix", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -62,6 +79,7 @@ export function GeneratePdfButton({ cards, onError }: GeneratePdfButtonProps) {
           email,
           firstName,
           lastName: lastNameParts.join(" "),
+          deviceId,
         }),
       });
       const payload = (await response.json()) as { payment?: PixPayment; error?: string };

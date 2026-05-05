@@ -5,6 +5,7 @@ import { CardPreview } from "@/components/CardPreview";
 import { CardSearchResults } from "@/components/CardSearchResults";
 import { DeckList } from "@/components/DeckList";
 import { GeneratePdfButton } from "@/components/GeneratePdfButton";
+import { MercadoPagoFrontendSdk } from "@/components/MercadoPagoFrontendSdk";
 import { SearchCardForm } from "@/components/SearchCardForm";
 import type { NormalizedCard, RenderedCard } from "@/types/card.types";
 import type { DeckCard, DeckState } from "@/types/deck.types";
@@ -120,6 +121,8 @@ export default function Home() {
 
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-md flex-col gap-5 px-4 py-5">
+      <MercadoPagoFrontendSdk />
+
       <header className="flex items-end justify-between gap-4">
         <div>
           <p className="text-xs font-black uppercase tracking-normal text-red-800">Yu-Gi-Oh!</p>

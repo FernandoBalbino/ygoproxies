@@ -1,14 +1,20 @@
 import { createHmac, randomUUID, timingSafeEqual } from "node:crypto";
+import { MercadoPagoConfig, Payment } from "mercadopago";
 
-const MERCADO_PAGO_API_URL = "https://api.mercadopago.com";
 const FULL_HD_AMOUNT = 4.99;
 const FULL_HD_DESCRIPTION = "YGO Proxies - PDF FULL HD";
+const FULL_HD_STATEMENT_DESCRIPTOR = "YGOPROXIES";
+const FULL_HD_ITEM_ID = "ygo-proxies-full-hd-pdf";
+const FULL_HD_ITEM_TITLE = "PDF FULL HD YGO Proxies";
+const FULL_HD_ITEM_DESCRIPTION = "PDF em alta qualidade com proxies Yu-Gi-Oh geradas pelo usuario.";
+const FULL_HD_ITEM_CATEGORY = "games";
 
 export interface CreatePixPaymentInput {
   email: string;
   firstName?: string;
   lastName?: string;
   notificationUrl?: string;
+  deviceId?: string;
 }
 
 export interface PixPaymentResult {
@@ -45,6 +51,13 @@ interface MercadoPagoWebhookPayload {
   };
 }
 
+function createPaymentClient(): Payment {
+  return new Payment(new MercadoPagoConfig({
+    accessToken: getAccessToken(),
+    options: { timeout: 10000 },
+  }));
+}
+
 function getAccessToken(): string {
   const accessToken = process.env.MERCADO_PAGO_ACCESS_TOKEN;
   if (!accessToken) {
@@ -74,54 +87,90 @@ function assertMercadoPagoResponse(response: MercadoPagoPixResponse): PixPayment
 
 export async function createPixPayment(input: CreatePixPaymentInput): Promise<PixPaymentResult> {
   const externalReference = `ygoproxies-full-hd-${randomUUID()}`;
+  const firstName = input.firstName?.trim() || "Cliente";
+  const lastName = input.lastName?.trim() || "YGO Proxies";
   const payload = {
     transaction_amount: FULL_HD_AMOUNT,
     description: FULL_HD_DESCRIPTION,
+    statement_descriptor: FULL_HD_STATEMENT_DESCRIPTOR,
     payment_method_id: "pix",
     external_reference: externalReference,
     notification_url: input.notificationUrl,
+    metadata: {
+      product_id: FULL_HD_ITEM_ID,
+      product: "full_hd_pdf",
+      integration: "ygoproxies",
+    },
     payer: {
       email: input.email,
-      first_name: input.firstName,
-      last_name: input.lastName,
+      first_name: firstName,
+      last_name: lastName,
+    },
+    additional_info: {
+      items: [
+        {
+          id: FULL_HD_ITEM_ID,
+          title: FULL_HD_ITEM_TITLE,
+          description: FULL_HD_ITEM_DESCRIPTION,
+          category_id: FULL_HD_ITEM_CATEGORY,
+          quantity: 1,
+          unit_price: FULL_HD_AMOUNT,
+          currency_id: "BRL",
+        },
+      ],
+      payer: {
+        first_name: firstName,
+        last_name: lastName,
+        authentication_type: "Web Nativa",
+      },
     },
   };
 
-  const response = await fetch(`${MERCADO_PAGO_API_URL}/v1/payments`, {
-    method: "POST",
-    headers: {
-      Accept: "application/json",
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${getAccessToken()}`,
-      "X-Idempotency-Key": randomUUID(),
-    },
-    body: JSON.stringify(payload),
-    cache: "no-store",
-  });
+  try {
+    const response = await createPaymentClient().create({
+      body: payload,
+      requestOptions: {
+        idempotencyKey: randomUUID(),
+        meliSessionId: input.deviceId?.trim() || undefined,
+      },
+    });
 
-  const body = (await response.json().catch(() => ({}))) as MercadoPagoPixResponse & { message?: string; error?: string };
-  if (!response.ok) {
-    throw new Error(body.message || body.error || "Falha ao criar pagamento Pix.");
+    return assertMercadoPagoResponse(response as MercadoPagoPixResponse);
+  } catch (error) {
+    throw new Error(getMercadoPagoErrorMessage(error, "Falha ao criar pagamento Pix."));
   }
-
-  return assertMercadoPagoResponse(body);
 }
 
 export async function getPayment(paymentId: string): Promise<MercadoPagoPixResponse> {
-  const response = await fetch(`${MERCADO_PAGO_API_URL}/v1/payments/${encodeURIComponent(paymentId)}`, {
-    headers: {
-      Accept: "application/json",
-      Authorization: `Bearer ${getAccessToken()}`,
-    },
-    cache: "no-store",
-  });
+  try {
+    return await createPaymentClient().get({ id: paymentId }) as MercadoPagoPixResponse;
+  } catch (error) {
+    throw new Error(getMercadoPagoErrorMessage(error, "Falha ao consultar pagamento."));
+  }
+}
 
-  const body = (await response.json().catch(() => ({}))) as MercadoPagoPixResponse & { message?: string; error?: string };
-  if (!response.ok) {
-    throw new Error(body.message || body.error || "Falha ao consultar pagamento.");
+function getMercadoPagoErrorMessage(error: unknown, fallback: string): string {
+  if (error instanceof Error) {
+    return error.message || fallback;
   }
 
-  return body;
+  if (error && typeof error === "object") {
+    const payload = error as {
+      message?: unknown;
+      error?: unknown;
+      cause?: Array<{ description?: string; message?: string; code?: string }>;
+    };
+
+    if (typeof payload.message === "string") return payload.message;
+    if (typeof payload.error === "string") return payload.error;
+
+    const firstCause = payload.cause?.find((cause) => cause.description || cause.message || cause.code);
+    if (firstCause) {
+      return firstCause.description || firstCause.message || firstCause.code || fallback;
+    }
+  }
+
+  return fallback;
 }
 
 function parseSignature(signature: string): { timestamp?: string; hash?: string } {

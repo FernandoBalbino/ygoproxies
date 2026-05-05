@@ -36,6 +36,8 @@ O webhook da aplicacao fica em:
 /api/mercado-pago/webhook?source_news=webhooks
 ```
 
+O fluxo pago carrega o MercadoPago.js V2 no frontend, gera o Device ID pelo script oficial de seguranca e cria o Pix pelo SDK oficial de backend `mercadopago`. A requisicao de pagamento tambem envia `statement_descriptor` e os dados do item em `additional_info.items`.
+
 Os assets usados pela geracao ficam em:
 
 - `public/assets/ygocarder/asset/image`

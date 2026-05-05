@@ -26,6 +26,7 @@ export async function POST(request: Request) {
       email?: string;
       firstName?: string;
       lastName?: string;
+      deviceId?: string;
     };
 
     if (!body.email?.trim()) {
@@ -37,6 +38,7 @@ export async function POST(request: Request) {
       firstName: body.firstName?.trim() || undefined,
       lastName: body.lastName?.trim() || undefined,
       notificationUrl: buildWebhookUrl(request),
+      deviceId: body.deviceId?.trim() || undefined,
     });
 
     return NextResponse.json({ payment });
