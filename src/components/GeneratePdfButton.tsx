@@ -247,8 +247,8 @@ export function GeneratePdfButton({ cards, onError }: GeneratePdfButtonProps) {
           <div className="grid gap-2 rounded-lg border border-emerald-200 bg-emerald-50 p-3">
             <div className="flex items-center justify-between gap-3">
               <div>
-                <p className="text-sm font-black text-stone-950">FULL HD</p>
-                <p className="text-xs font-bold text-emerald-800">R$ 4,99</p>
+            <p className="text-sm font-black text-stone-950">FULL HD para impressao</p>
+            <p className="text-xs font-bold text-emerald-800">R$ 4,99</p>
               </div>
               {isPaymentApproved ? <CheckCircle2 className="text-emerald-800" size={22} /> : <QrCode className="text-emerald-800" size={22} />}
             </div>

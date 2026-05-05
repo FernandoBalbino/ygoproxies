@@ -34,16 +34,16 @@ export function CardPreview({ selectedCard, renderedCard, isRendering, onAddToDe
             </div>
           )}
         </div>
-        <div className="mt-3 flex items-center justify-between gap-3">
+        <div className="mt-3 grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
           <div className="min-w-0">
-            <p className="truncate text-base font-black text-stone-950">{selectedCard.name}</p>
+            <p className="clamp-2 wrap-anywhere text-base font-black leading-snug text-stone-950">{selectedCard.name}</p>
             <p className="text-sm font-semibold text-stone-600">{targetDeck}</p>
           </div>
           <button
             type="button"
             onClick={onAddToDeck}
             disabled={!renderedCard || isRendering}
-            className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-emerald-800 px-4 text-sm font-black text-white transition active:scale-[0.98] disabled:cursor-not-allowed disabled:bg-stone-400"
+            className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-lg bg-emerald-800 px-4 text-sm font-black text-white transition active:scale-[0.98] disabled:cursor-not-allowed disabled:bg-stone-400 sm:w-auto"
           >
             <Plus size={18} />
             Adicionar

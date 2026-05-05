@@ -10,6 +10,39 @@ const COLUMNS = 3;
 const ROWS = 3;
 const GAP_MM = 2;
 const FREE_JPEG_QUALITY = 0.7;
+const FULL_HD_RENDER_SCALE = 2;
+
+async function getFullHdRenderedImageDataUrl(card: DeckCard, cache: Map<string, Promise<string>>): Promise<string> {
+  const cacheKey = `${card.id}:${card.renderLanguage ?? "pt"}`;
+  const cached = cache.get(cacheKey);
+  if (cached) {
+    return cached;
+  }
+
+  const request = fetch("/api/generate-card", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      cardId: card.id,
+      language: card.renderLanguage ?? "pt",
+      renderScale: FULL_HD_RENDER_SCALE,
+    }),
+  })
+    .then(async (response) => {
+      const payload = (await response.json()) as { card?: { renderedImageDataUrl?: string }; error?: string };
+
+      if (!response.ok || !payload.card?.renderedImageDataUrl) {
+        throw new Error(payload.error ?? `Falha ao gerar ${card.name} em FULL HD.`);
+      }
+
+      return payload.card.renderedImageDataUrl;
+    });
+
+  cache.set(cacheKey, request);
+  return request;
+}
 
 function mmToPt(value: number): number {
   return value * MM_TO_PT;
@@ -77,6 +110,7 @@ export async function generateDeckPdf(cards: DeckCard[], qualityMode: PdfQuality
   }
 
   const pdf = await PDFDocument.create();
+  const fullHdRenderCache = new Map<string, Promise<string>>();
   const pageWidth = mmToPt(A4_SIZE_MM.width);
   const pageHeight = mmToPt(A4_SIZE_MM.height);
   const cardWidth = mmToPt(CARD_SIZE_MM.width);
@@ -96,9 +130,12 @@ export async function generateDeckPdf(cards: DeckCard[], qualityMode: PdfQuality
     const pageIndex = index % CARDS_PER_PAGE;
     const column = pageIndex % COLUMNS;
     const row = Math.floor(pageIndex / COLUMNS);
+    const renderedImageDataUrl = qualityMode === "free"
+      ? cards[index].renderedImageDataUrl
+      : await getFullHdRenderedImageDataUrl(cards[index], fullHdRenderCache);
     const image = qualityMode === "free"
-      ? await pdf.embedJpg(await dataUrlToJpegBytes(cards[index].renderedImageDataUrl, FREE_JPEG_QUALITY))
-      : await pdf.embedPng(dataUrlToBytes(cards[index].renderedImageDataUrl));
+      ? await pdf.embedJpg(await dataUrlToJpegBytes(renderedImageDataUrl, FREE_JPEG_QUALITY))
+      : await pdf.embedPng(dataUrlToBytes(renderedImageDataUrl));
 
     page.drawImage(image, {
       x: marginX + column * (cardWidth + gap),

@@ -1,13 +1,13 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { CardPreview } from "@/components/CardPreview";
 import { CardSearchResults } from "@/components/CardSearchResults";
-import { DeckList } from "@/components/DeckList";
+import { DeckDock } from "@/components/DeckDock";
 import { GeneratePdfButton } from "@/components/GeneratePdfButton";
 import { MercadoPagoFrontendSdk } from "@/components/MercadoPagoFrontendSdk";
 import { SearchCardForm } from "@/components/SearchCardForm";
-import type { NormalizedCard, RenderedCard } from "@/types/card.types";
+import type { DeckType, NormalizedCard, RenderedCard } from "@/types/card.types";
 import type { DeckCard, DeckState } from "@/types/deck.types";
 
 function createInstanceId(cardId: number): string {
@@ -25,11 +25,13 @@ export default function Home() {
   const [selectedCard, setSelectedCard] = useState<NormalizedCard | null>(null);
   const [renderedCard, setRenderedCard] = useState<RenderedCard | null>(null);
   const [deck, setDeck] = useState<DeckState>({ main: [], extra: [] });
+  const [activeDeck, setActiveDeck] = useState<DeckType | null>(null);
   const [isSearching, setIsSearching] = useState(false);
   const [isRendering, setIsRendering] = useState(false);
   const [error, setError] = useState("");
 
   const allDeckCards = useMemo(() => [...deck.main, ...deck.extra], [deck]);
+  const closeDeck = useCallback(() => setActiveDeck(null), []);
 
   async function handleSearch() {
     const term = query.trim();
@@ -104,6 +106,7 @@ export default function Home() {
       ...renderedCard,
       deckType: renderedCard.deckType,
       instanceId: createInstanceId(renderedCard.id),
+      renderLanguage: language,
     };
 
     setDeck((current) => ({
@@ -120,55 +123,66 @@ export default function Home() {
   }
 
   return (
-    <main className="mx-auto flex min-h-screen w-full max-w-md flex-col gap-5 px-4 py-5">
-      <MercadoPagoFrontendSdk />
+    <>
+      <main className="mx-auto flex min-h-screen w-full max-w-xl flex-col gap-5 px-3 py-4 pb-32 sm:max-w-2xl sm:px-5 sm:py-5 md:max-w-4xl md:pb-36">
+        <MercadoPagoFrontendSdk />
 
-      <header className="flex items-end justify-between gap-4">
-        <div>
-          <p className="text-xs font-black uppercase tracking-normal text-red-800">Yu-Gi-Oh!</p>
-          <h1 className="text-3xl font-black tracking-normal text-stone-950">YGO Proxies</h1>
-        </div>
-        <div className="rounded-lg bg-stone-950 px-3 py-2 text-right text-white">
-          <p className="text-xs font-bold text-stone-300">Total</p>
-          <p className="text-xl font-black">{allDeckCards.length}</p>
-        </div>
-      </header>
+        <header className="flex min-w-0 items-end justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-xs font-black uppercase tracking-normal text-red-800">Yu-Gi-Oh!</p>
+            <h1 className="truncate text-3xl font-black tracking-normal text-stone-950 sm:text-4xl">YGO Proxies</h1>
+          </div>
+          <div className="shrink-0 rounded-lg bg-stone-950 px-3 py-2 text-right text-white">
+            <p className="text-xs font-bold text-stone-300">Total</p>
+            <p className="text-xl font-black">{allDeckCards.length}</p>
+          </div>
+        </header>
 
-      <SearchCardForm 
-        query={query} 
-        language={language}
-        isLoading={isSearching} 
-        onQueryChange={setQuery} 
-        onLanguageChange={setLanguage}
-        onSearch={handleSearch} 
+        <section className="grid gap-5 md:grid-cols-[minmax(0,1fr)_minmax(300px,360px)] md:items-start">
+          <div className="grid min-w-0 gap-5">
+            <SearchCardForm
+              query={query}
+              language={language}
+              isLoading={isSearching}
+              onQueryChange={setQuery}
+              onLanguageChange={setLanguage}
+              onSearch={handleSearch}
+            />
+
+            {error ? (
+              <div className="wrap-anywhere rounded-lg border border-red-200 bg-red-50 p-3 text-sm font-bold leading-snug text-red-800">
+                {error}
+              </div>
+            ) : null}
+
+            <CardSearchResults
+              cards={results}
+              selectedCardId={selectedCard?.id}
+              isLoading={isSearching}
+              onSelectCard={handleSelectCard}
+            />
+          </div>
+
+          <div className="grid min-w-0 gap-5 md:sticky md:top-5">
+            <CardPreview
+              selectedCard={selectedCard}
+              renderedCard={renderedCard}
+              isRendering={isRendering}
+              onAddToDeck={handleAddToDeck}
+            />
+
+            <GeneratePdfButton cards={allDeckCards} onError={setError} />
+          </div>
+        </section>
+      </main>
+
+      <DeckDock
+        deck={deck}
+        activeDeck={activeDeck}
+        onOpenDeck={setActiveDeck}
+        onCloseDeck={closeDeck}
+        onRemoveCard={handleRemoveCard}
       />
-
-      {error ? (
-        <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm font-bold text-red-800">
-          {error}
-        </div>
-      ) : null}
-
-      <CardSearchResults
-        cards={results}
-        selectedCardId={selectedCard?.id}
-        isLoading={isSearching}
-        onSelectCard={handleSelectCard}
-      />
-
-      <CardPreview
-        selectedCard={selectedCard}
-        renderedCard={renderedCard}
-        isRendering={isRendering}
-        onAddToDeck={handleAddToDeck}
-      />
-
-      <GeneratePdfButton cards={allDeckCards} onError={setError} />
-
-      <div className="grid gap-5 pb-8">
-        <DeckList title="Deck Principal" cards={deck.main} onRemoveCard={handleRemoveCard} />
-        <DeckList title="Extra Deck" cards={deck.extra} onRemoveCard={handleRemoveCard} />
-      </div>
-    </main>
+    </>
   );
 }

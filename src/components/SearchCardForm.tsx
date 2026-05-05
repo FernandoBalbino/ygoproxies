@@ -19,12 +19,12 @@ export function SearchCardForm({ query, language, isLoading, onQueryChange, onLa
   }
 
   return (
-    <form onSubmit={handleSubmit} className="flex gap-2">
+    <form onSubmit={handleSubmit} className="grid grid-cols-[4.5rem_minmax(0,1fr)] gap-2 sm:grid-cols-[4.5rem_minmax(0,1fr)_3.5rem]">
       <select
         value={language}
         onChange={(event) => onLanguageChange(event.target.value as "pt" | "en")}
         disabled={isLoading}
-        className="min-h-12 rounded-lg border border-stone-300 bg-stone-100 px-3 text-sm font-bold text-stone-700 outline-none transition focus:border-emerald-800 disabled:opacity-50"
+        className="min-h-12 min-w-0 rounded-lg border border-stone-300 bg-stone-100 px-3 text-sm font-bold text-stone-700 outline-none transition focus:border-emerald-800 disabled:opacity-50"
         title="Idioma"
       >
         <option value="pt">PT</option>
@@ -34,12 +34,12 @@ export function SearchCardForm({ query, language, isLoading, onQueryChange, onLa
         value={query}
         onChange={(event) => onQueryChange(event.target.value)}
         placeholder="Nome da carta"
-        className="min-h-12 flex-1 rounded-lg border border-stone-300 bg-white px-4 text-base text-stone-950 outline-none ring-emerald-800/20 transition focus:border-emerald-800 focus:ring-4"
+        className="min-h-12 min-w-0 rounded-lg border border-stone-300 bg-white px-4 text-base text-stone-950 outline-none ring-emerald-800/20 transition focus:border-emerald-800 focus:ring-4"
       />
       <button
         type="submit"
         disabled={isLoading}
-        className="inline-flex min-h-12 min-w-12 items-center justify-center rounded-lg bg-stone-950 px-4 text-white shadow-card transition active:scale-[0.98] disabled:cursor-not-allowed disabled:bg-stone-400"
+        className="col-span-2 inline-flex min-h-12 min-w-0 items-center justify-center rounded-lg bg-stone-950 px-3 text-white shadow-card transition active:scale-[0.98] disabled:cursor-not-allowed disabled:bg-stone-400 sm:col-span-1"
         aria-label="Buscar"
         title="Buscar"
       >

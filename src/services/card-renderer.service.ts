@@ -86,6 +86,59 @@ type FittedTextBlock = {
   lines: string[];
 };
 
+type RenderScale = 1 | 2;
+
+type RenderCardImageOptions = {
+  scale?: RenderScale;
+};
+
+function scaledNumber(value: number, scale: RenderScale): number {
+  return scale === 1 ? value : value * scale;
+}
+
+function scaledInteger(value: number, scale: RenderScale): number {
+  return scale === 1 ? Math.round(value) : Math.round(value * scale);
+}
+
+function scaleBox<T extends Record<string, number>>(box: T, scale: RenderScale): T {
+  if (scale === 1) return box;
+
+  return Object.fromEntries(
+    Object.entries(box).map(([key, value]) => [key, scaledNumber(value, scale)]),
+  ) as T;
+}
+
+function scaleFontList(fontList: FontSizeData[], scale: RenderScale): FontSizeData[] {
+  if (scale === 1) return fontList;
+
+  return fontList.map((item) => ({
+    ...item,
+    fontSize: scaledNumber(item.fontSize, scale),
+    lineHeight: scaledNumber(item.lineHeight, scale),
+  }));
+}
+
+function scaleLayout(layout: CardLayout, scale: RenderScale): CardLayout {
+  if (scale === 1) return layout;
+
+  return {
+    width: scaledInteger(layout.width, scale),
+    height: scaledInteger(layout.height, scale),
+    name: scaleBox(layout.name, scale),
+    attribute: scaleBox(layout.attribute, scale),
+    subfamily: scaleBox(layout.subfamily, scale),
+    spellTrapType: scaleBox(layout.spellTrapType, scale),
+    spellTrapTypeNoSubfamily: scaleBox(layout.spellTrapTypeNoSubfamily, scale),
+    stars: scaleBox(layout.stars, scale),
+    rankStars: scaleBox(layout.rankStars, scale),
+    artwork: scaleBox(layout.artwork, scale),
+    typeLine: scaleBox(layout.typeLine, scale),
+    description: scaleBox(layout.description, scale),
+    spellDescription: scaleBox(layout.spellDescription, scale),
+    atkDef: scaleBox(layout.atkDef, scale),
+  };
+}
+
 const EFFECT_FONT_LIST_TCG: FontSizeData[] = [
   { fontSize: 40.2, lineHeight: 42.1, lineCount: 5 },
   { fontSize: 33.2, lineHeight: 35.1, lineCount: 6 },
@@ -511,7 +564,7 @@ function linkMarkerToIndex(marker: string): string | null {
   return map[normalized] ?? null;
 }
 
-function linkArrowPositions(markers?: string[]): Array<{ index: string; left: number; top: number; width: number; height: number }> {
+function linkArrowPositions(markers?: string[], renderScale: RenderScale = 1): Array<{ index: string; left: number; top: number; width: number; height: number }> {
   if (!markers?.length) return [];
   const active = new Set(markers.map(linkMarkerToIndex).filter((index): index is string => Boolean(index)));
   const positions: Record<string, { left: number; top: number; width: number; height: number }> = {
@@ -527,19 +580,19 @@ function linkArrowPositions(markers?: string[]): Array<{ index: string; left: nu
 
   return [...active].flatMap((index) => {
     const position = positions[index];
-    return position ? [{ index, ...position }] : [];
+    return position ? [{ index, ...scaleBox(position, renderScale) }] : [];
   });
 }
 
-function spellTrapSubfamilyPlacement(layout: CardLayout): { iconLeft: number; iconTop: number; closeBracketX: number; textRightX: number } {
-  const closeBracketX = Math.round(Math.min(layout.spellTrapTypeNoSubfamily.rightX - 20, layout.width - 92));
-  const iconLeft = Math.round(closeBracketX - layout.subfamily.size - 4);
+function spellTrapSubfamilyPlacement(layout: CardLayout, renderScale: RenderScale = 1): { iconLeft: number; iconTop: number; closeBracketX: number; textRightX: number } {
+  const closeBracketX = Math.round(Math.min(layout.spellTrapTypeNoSubfamily.rightX - scaledNumber(20, renderScale), layout.width - scaledNumber(92, renderScale)));
+  const iconLeft = Math.round(closeBracketX - layout.subfamily.size - scaledNumber(4, renderScale));
 
   return {
     iconLeft,
     iconTop: Math.round(layout.subfamily.y),
     closeBracketX,
-    textRightX: iconLeft - 8,
+    textRightX: iconLeft - scaledNumber(8, renderScale),
   };
 }
 
@@ -560,10 +613,21 @@ async function buildAttributeIconAsset(publicPath: string, size: number): Promis
     .toBuffer();
 }
 
-async function buildImageAsset(relativePath: string, width?: number, height?: number): Promise<Buffer> {
-  const image = sharp(assetPath(relativePath));
+async function buildImageAsset(relativePath: string, width?: number, height?: number, renderScale: RenderScale = 1): Promise<Buffer> {
+  const filePath = assetPath(relativePath);
+  const image = sharp(filePath);
   if (width && height) {
-    return image.resize(width, height, { fit: "fill" }).png().toBuffer();
+    return image.resize(Math.round(width), Math.round(height), { fit: "fill", kernel: sharp.kernel.lanczos3 }).png().toBuffer();
+  }
+
+  if (renderScale > 1) {
+    const metadata = await sharp(filePath).metadata();
+    if (metadata.width && metadata.height) {
+      return image
+        .resize(scaledInteger(metadata.width, renderScale), scaledInteger(metadata.height, renderScale), { fit: "fill", kernel: sharp.kernel.lanczos3 })
+        .png()
+        .toBuffer();
+    }
   }
 
   return image.png().toBuffer();
@@ -572,78 +636,86 @@ async function buildImageAsset(relativePath: string, width?: number, height?: nu
 async function buildImageAssetWithClearedArea(
   relativePath: string,
   clearArea: { left: number; top: number; width: number; height: number },
+  width: number = DEFAULT_CARD_LAYOUT.width,
+  height: number = DEFAULT_CARD_LAYOUT.height,
 ): Promise<Buffer> {
   const clearMask = Buffer.from(`
-    <svg width="${DEFAULT_CARD_LAYOUT.width}" height="${DEFAULT_CARD_LAYOUT.height}" xmlns="http://www.w3.org/2000/svg">
+    <svg width="${width}" height="${height}" xmlns="http://www.w3.org/2000/svg">
       <rect x="${clearArea.left}" y="${clearArea.top}" width="${clearArea.width}" height="${clearArea.height}" fill="white" />
     </svg>
   `);
 
-  return sharp(assetPath(relativePath))
+  return sharp(await buildImageAsset(relativePath, width, height))
     .ensureAlpha()
     .composite([{ input: clearMask, blend: "dest-out" }])
     .png()
     .toBuffer();
 }
 
-async function buildPendulumBorderAsset(): Promise<Buffer> {
+async function buildPendulumBorderAsset(renderScale: RenderScale = 1): Promise<Buffer> {
+  const width = scaledInteger(DEFAULT_CARD_LAYOUT.width, renderScale);
+  const height = scaledInteger(DEFAULT_CARD_LAYOUT.height, renderScale);
+  const border = scaleBox(PENDULUM_BORDER, renderScale);
   const clearTopMask = Buffer.from(`
-    <svg width="${DEFAULT_CARD_LAYOUT.width}" height="${DEFAULT_CARD_LAYOUT.height}" xmlns="http://www.w3.org/2000/svg">
-      <rect x="0" y="0" width="${DEFAULT_CARD_LAYOUT.width}" height="${PENDULUM_ARTLESS_BORDER_CLEAR_HEIGHT}" fill="white" />
+    <svg width="${width}" height="${height}" xmlns="http://www.w3.org/2000/svg">
+      <rect x="0" y="0" width="${width}" height="${scaledInteger(PENDULUM_ARTLESS_BORDER_CLEAR_HEIGHT, renderScale)}" fill="white" />
     </svg>
   `);
 
   return sharp({
     create: {
-      width: DEFAULT_CARD_LAYOUT.width,
-      height: DEFAULT_CARD_LAYOUT.height,
+      width,
+      height,
       channels: 4,
       background: { r: 0, g: 0, b: 0, alpha: 0 },
     },
   })
     .composite([
       {
-        input: await buildImageAsset("frame-pendulum/border-pendulum-medium-base-artless.png"),
-        left: PENDULUM_BORDER.x,
-        top: PENDULUM_BORDER.y,
+        input: await buildImageAsset("frame-pendulum/border-pendulum-medium-base-artless.png", undefined, undefined, renderScale),
+        left: Math.round(border.x),
+        top: Math.round(border.y),
       },
       {
         input: clearTopMask,
         blend: "dest-out",
       },
       {
-        input: await buildImageAsset("frame-pendulum/border-pendulum-medium-base.png"),
-        left: PENDULUM_BORDER.x,
-        top: PENDULUM_BORDER.y,
+        input: await buildImageAsset("frame-pendulum/border-pendulum-medium-base.png", undefined, undefined, renderScale),
+        left: Math.round(border.x),
+        top: Math.round(border.y),
       },
     ])
     .png()
     .toBuffer();
 }
 
-async function buildImagePatch(relativePath: string, left: number, top: number, width: number, height: number): Promise<Buffer> {
+async function buildImagePatch(relativePath: string, left: number, top: number, width: number, height: number, renderScale: RenderScale = 1): Promise<Buffer> {
   return sharp(assetPath(relativePath))
+    .resize(scaledInteger(DEFAULT_CARD_LAYOUT.width, renderScale), scaledInteger(DEFAULT_CARD_LAYOUT.height, renderScale), { fit: "fill", kernel: sharp.kernel.lanczos3 })
     .extract({ left, top, width, height })
     .png()
     .toBuffer();
 }
 
-async function optionalAsset(relativePath: string, width?: number, height?: number): Promise<Buffer | null> {
+async function optionalAsset(relativePath: string, width?: number, height?: number, renderScale: RenderScale = 1): Promise<Buffer | null> {
   try {
     await fs.access(assetPath(relativePath));
-    return buildImageAsset(relativePath, width, height);
+    return buildImageAsset(relativePath, width, height, renderScale);
   } catch {
     return null;
   }
 }
 
-async function buildTextOverlay(card: NormalizedCard, layout: CardLayout): Promise<Buffer> {
+async function buildTextOverlay(card: NormalizedCard, layout: CardLayout, renderScale: RenderScale = 1): Promise<Buffer> {
   const isPendulum = isPendulumCard(card);
   const frame = frameKey(card.frameType);
+  const pendulumEffectText = scaleBox(PENDULUM_EFFECT_TEXT, renderScale);
+  const pendulumScale = scaleBox(PENDULUM_SCALE, renderScale);
   const renderedName = card.name;
   const nameMaxWidth = Math.max(
-    180,
-    Math.min(layout.name.maxWidth, layout.attribute.x - layout.name.x - 48),
+    scaledNumber(180, renderScale),
+    Math.min(layout.name.maxWidth, layout.attribute.x - layout.name.x - scaledNumber(48, renderScale)),
   );
   const name = await fitSingleLine(
     renderedName,
@@ -661,7 +733,7 @@ async function buildTextOverlay(card: NormalizedCard, layout: CardLayout): Promi
   const spellTrapType = !isMonster(card)
     ? await fitSingleLine(`[${spellTrapTypeText(card)}]`, layout.spellTrapTypeNoSubfamily.maxWidth, layout.spellTrapTypeNoSubfamily.fontSize, layout.spellTrapTypeNoSubfamily.minFontSize, CARD_FONTS.type, 0.72, 1.25)
     : null;
-  const spellTrapSubfamily = spellTrapSubfamilyPlacement(layout);
+  const spellTrapSubfamily = spellTrapSubfamilyPlacement(layout, renderScale);
   const spellTrapTypeWithIcon = !isMonster(card) && card.subfamilyIconPath
     ? await fitSingleLine(`[${spellTrapTypeText(card)}`, layout.spellTrapType.maxWidth, layout.spellTrapType.fontSize, layout.spellTrapType.minFontSize, CARD_FONTS.type, 0.72, 1.25)
     : null;
@@ -677,23 +749,23 @@ async function buildTextOverlay(card: NormalizedCard, layout: CardLayout): Promi
     descLayout.maxWidth,
     descLayout.maxHeight,
     descFont,
-    descFontList,
+    scaleFontList(descFontList, renderScale),
   );
   const pendulumDescription = isPendulum && card.pendulumDescription
     ? await fitTextBlock(
         card.pendulumDescription,
-        PENDULUM_EFFECT_TEXT.maxWidth,
-        PENDULUM_EFFECT_TEXT.maxHeight,
+        pendulumEffectText.maxWidth,
+        pendulumEffectText.maxHeight,
         CARD_FONTS.effect,
-        PENDULUM_EFFECT_FONT_LIST_TCG,
+        scaleFontList(PENDULUM_EFFECT_FONT_LIST_TCG, renderScale),
       )
     : null;
-  const atk = await fitSingleLine(statText(card.atk), 74, layout.atkDef.fontSize, 22, CARD_FONTS.statNumber, 0.7);
+  const atk = await fitSingleLine(statText(card.atk), scaledNumber(74, renderScale), layout.atkDef.fontSize, scaledNumber(22, renderScale), CARD_FONTS.statNumber, 0.7);
   const def = await fitSingleLine(
     frame === "link" ? statText(card.linkval ?? null) : statText(card.def),
-    74,
+    scaledNumber(74, renderScale),
     layout.atkDef.fontSize,
-    22,
+    scaledNumber(22, renderScale),
     CARD_FONTS.statNumber,
     0.7,
   );
@@ -713,10 +785,10 @@ async function buildTextOverlay(card: NormalizedCard, layout: CardLayout): Promi
 
   const statLine = isMonster(card)
     ? `
-      <text x="432.1" y="${layout.atkDef.y}" class="stat-label" font-size="35.73">ATK/</text>
-      ${compressedText(statText(card.atk), 581.8, layout.atkDef.y + 0.5, atk, "stat-value", "end")}
-      <text x="${frame === "link" ? 593 : 600.85}" y="${layout.atkDef.y}" class="stat-label" font-size="35.73">${frame === "link" ? "LINK/" : "DEF/"}</text>
-      ${compressedText(frame === "link" ? statText(card.linkval ?? null) : statText(card.def), 747.8, layout.atkDef.y + 0.5, def, "stat-value", "end")}
+      <text x="${scaledNumber(432.1, renderScale)}" y="${layout.atkDef.y}" class="stat-label" font-size="${scaledNumber(35.73, renderScale)}">ATK/</text>
+      ${compressedText(statText(card.atk), scaledNumber(581.8, renderScale), layout.atkDef.y + scaledNumber(0.5, renderScale), atk, "stat-value", "end")}
+      <text x="${scaledNumber(frame === "link" ? 593 : 600.85, renderScale)}" y="${layout.atkDef.y}" class="stat-label" font-size="${scaledNumber(35.73, renderScale)}">${frame === "link" ? "LINK/" : "DEF/"}</text>
+      ${compressedText(frame === "link" ? statText(card.linkval ?? null) : statText(card.def), scaledNumber(747.8, renderScale), layout.atkDef.y + scaledNumber(0.5, renderScale), def, "stat-value", "end")}
     `
     : "";
 
@@ -727,7 +799,7 @@ async function buildTextOverlay(card: NormalizedCard, layout: CardLayout): Promi
         .name {
           fill: ${hasDarkNameBackground(card) ? LIGHT_TEXT_COLOR : TEXT_COLOR};
           stroke: ${hasDarkNameBackground(card) ? LIGHT_TEXT_COLOR : TEXT_COLOR};
-          stroke-width: 0.25;
+          stroke-width: ${scaledNumber(0.25, renderScale)};
           paint-order: stroke fill;
           font-family: ${svgFontFamily(CARD_FONTS.name)};
           font-variant: small-caps;
@@ -764,10 +836,10 @@ async function buildTextOverlay(card: NormalizedCard, layout: CardLayout): Promi
       ${compressedText(renderedName, layout.name.x, layout.name.y, name, "name")}
       ${typeLine ? compressedText(typeLineText(card), layout.typeLine.x, layout.typeLine.y, typeLine, "type") : ""}
       ${spellTrapTypeLine}
-      ${pendulumDescription ? centeredTextGroup(pendulumDescription, PENDULUM_EFFECT_TEXT, "effect") : ""}
+      ${pendulumDescription ? centeredTextGroup(pendulumDescription, pendulumEffectText, "effect") : ""}
       ${isPendulum ? `
-        <text x="${PENDULUM_SCALE.blueX}" y="${PENDULUM_SCALE.y}" class="pendulum-scale" font-size="${PENDULUM_SCALE.fontSize}">${escapeXml(statText(card.pendulumScale ?? 0))}</text>
-        <text x="${PENDULUM_SCALE.redX}" y="${PENDULUM_SCALE.y}" class="pendulum-scale" font-size="${PENDULUM_SCALE.fontSize}">${escapeXml(statText(card.pendulumScale ?? 0))}</text>
+        <text x="${pendulumScale.blueX}" y="${pendulumScale.y}" class="pendulum-scale" font-size="${pendulumScale.fontSize}">${escapeXml(statText(card.pendulumScale ?? 0))}</text>
+        <text x="${pendulumScale.redX}" y="${pendulumScale.y}" class="pendulum-scale" font-size="${pendulumScale.fontSize}">${escapeXml(statText(card.pendulumScale ?? 0))}</text>
       ` : ""}
       ${textGroup(description.lines, descLayout.x, descLayout.y, description.fontSize, description.lineHeight, description.scaleX, "effect")}
       ${statLine}
@@ -777,7 +849,12 @@ async function buildTextOverlay(card: NormalizedCard, layout: CardLayout): Promi
   return Buffer.from(svg);
 }
 
-export async function renderCardImage(card: NormalizedCard, sourceImageBuffer: Buffer, layout: CardLayout = DEFAULT_CARD_LAYOUT): Promise<RenderedCard> {
+export async function renderCardImage(
+  card: NormalizedCard,
+  sourceImageBuffer: Buffer,
+  layout: CardLayout = DEFAULT_CARD_LAYOUT,
+  options: RenderCardImageOptions = {},
+): Promise<RenderedCard> {
   if (!card.isSupported) {
     throw new Error(card.unsupportedReason ?? "Tipo de carta nao suportado.");
   }
@@ -788,22 +865,36 @@ export async function renderCardImage(card: NormalizedCard, sourceImageBuffer: B
 
   const frame = frameKey(card.frameType);
   const isPendulum = isPendulumCard(card);
+  const renderScale = options.scale ?? 1;
+  const renderLayout = scaleLayout(layout, renderScale);
+  const pendulumArtwork = scaleBox(PENDULUM_ARTWORK, renderScale);
+  const pendulumClearArea = scaleBox(PENDULUM_CLEAR_AREA, renderScale);
+  const pendulumEffectBackground = scaleBox(PENDULUM_EFFECT_BACKGROUND, renderScale);
+  const pendulumScaleIcon = scaleBox(PENDULUM_SCALE_ICON, renderScale);
   const bottomFrame = isPendulum ? pendulumBottomFrameKey() : frame;
-  const artworkLayout = isPendulum ? PENDULUM_ARTWORK : layout.artwork;
-  const artworkBuffer = await sharp(sourceImageBuffer)
-    .resize(artworkLayout.width, artworkLayout.height, { fit: "cover", position: isPendulum ? "north" : "center" })
+  const artworkLayout = isPendulum ? pendulumArtwork : renderLayout.artwork;
+  const artworkPipeline = sharp(sourceImageBuffer)
+    .resize(Math.round(artworkLayout.width), Math.round(artworkLayout.height), {
+      fit: "cover",
+      position: isPendulum ? "north" : "center",
+      kernel: sharp.kernel.lanczos3,
+    });
+  if (renderScale > 1) {
+    artworkPipeline.sharpen({ sigma: 0.6, m1: 0.4, m2: 1.2 });
+  }
+  const artworkBuffer = await artworkPipeline
     .png()
     .toBuffer();
   const composites: sharp.OverlayOptions[] = [
     {
       input: artworkBuffer,
-      left: artworkLayout.x,
-      top: artworkLayout.y,
+      left: Math.round(artworkLayout.x),
+      top: Math.round(artworkLayout.y),
     },
     {
       input: isPendulum
-        ? await buildImageAssetWithClearedArea(`frame/frame-${frame}.png`, PENDULUM_CLEAR_AREA)
-        : await buildImageAsset(`frame/frame-${frame}.png`, layout.width, layout.height),
+        ? await buildImageAssetWithClearedArea(`frame/frame-${frame}.png`, pendulumClearArea, renderLayout.width, renderLayout.height)
+        : await buildImageAsset(`frame/frame-${frame}.png`, renderLayout.width, renderLayout.height),
       left: 0,
       top: 0,
     },
@@ -811,103 +902,103 @@ export async function renderCardImage(card: NormalizedCard, sourceImageBuffer: B
 
   if (isPendulum) {
     composites.push({
-      input: await buildImageAsset(`frame-pendulum/frame-pendulum-${bottomFrame}.png`, layout.width, layout.height),
+      input: await buildImageAsset(`frame-pendulum/frame-pendulum-${bottomFrame}.png`, renderLayout.width, renderLayout.height),
       left: 0,
       top: 0,
     });
   }
 
-  const cardBorder = await optionalAsset("frame/card-border-normal.png", layout.width, layout.height);
+  const cardBorder = await optionalAsset("frame/card-border-normal.png", renderLayout.width, renderLayout.height);
   if (cardBorder) composites.push({ input: cardBorder, left: 0, top: 0 });
 
   if (isPendulum) {
     composites.push({
       input: artworkBuffer,
-      left: artworkLayout.x,
-      top: artworkLayout.y,
+      left: Math.round(artworkLayout.x),
+      top: Math.round(artworkLayout.y),
     });
   }
 
-  const nameBackground = await optionalAsset(`background/background-name-${frame}.png`);
+  const nameBackground = await optionalAsset(`background/background-name-${frame}.png`, undefined, undefined, renderScale);
   if (nameBackground) composites.push({ input: nameBackground, left: 0, top: 0 });
 
-  const effectBackground = await optionalAsset(`background/background-text-${bottomFrame}.png`);
-  if (effectBackground) composites.push({ input: effectBackground, left: 54, top: 884 });
+  const effectBackground = await optionalAsset(`background/background-text-${bottomFrame}.png`, undefined, undefined, renderScale);
+  if (effectBackground) composites.push({ input: effectBackground, left: scaledInteger(54, renderScale), top: scaledInteger(884, renderScale) });
 
   if (isPendulum) {
     const pendulumBackground = await optionalAsset(
       `background/background-pendulum-${bottomFrame}.png`,
-      PENDULUM_EFFECT_BACKGROUND.width,
-      PENDULUM_EFFECT_BACKGROUND.height,
+      pendulumEffectBackground.width,
+      pendulumEffectBackground.height,
     );
     if (pendulumBackground) {
       composites.push({
         input: pendulumBackground,
-        left: PENDULUM_EFFECT_BACKGROUND.x,
-        top: PENDULUM_EFFECT_BACKGROUND.y,
+        left: Math.round(pendulumEffectBackground.x),
+        top: Math.round(pendulumEffectBackground.y),
       });
     }
   }
 
   if (!isPendulum) {
-    const effectBorder = await optionalAsset("frame/effect-border-base.png");
-    if (effectBorder) composites.push({ input: effectBorder, left: 35, top: 860 });
+    const effectBorder = await optionalAsset("frame/effect-border-base.png", undefined, undefined, renderScale);
+    if (effectBorder) composites.push({ input: effectBorder, left: scaledInteger(35, renderScale), top: scaledInteger(860, renderScale) });
   }
 
   if (isPendulum) {
-    const pendulumScaleIcon = await optionalAsset("frame-pendulum/pendulum-scale-medium.png");
-    if (pendulumScaleIcon) {
+    const pendulumScaleIconAsset = await optionalAsset("frame-pendulum/pendulum-scale-medium.png", undefined, undefined, renderScale);
+    if (pendulumScaleIconAsset) {
       composites.push({
-        input: pendulumScaleIcon,
-        left: PENDULUM_SCALE_ICON.x,
-        top: PENDULUM_SCALE_ICON.y,
+        input: pendulumScaleIconAsset,
+        left: Math.round(pendulumScaleIcon.x),
+        top: Math.round(pendulumScaleIcon.y),
       });
     }
 
     composites.push({
-      input: await buildPendulumBorderAsset(),
+      input: await buildPendulumBorderAsset(renderScale),
       left: 0,
       top: 0,
     });
   } else {
     const artBorderSource = frame === "xyz" ? "frame/art-border-xyz.png" : "frame/art-border-base.png";
-    const artBorder = await optionalAsset(artBorderSource);
-    if (artBorder) composites.push({ input: artBorder, left: 60, top: 170 });
+    const artBorder = await optionalAsset(artBorderSource, undefined, undefined, renderScale);
+    if (artBorder) composites.push({ input: artBorder, left: scaledInteger(60, renderScale), top: scaledInteger(170, renderScale) });
   }
 
   if (frame === "link") {
-    for (const arrow of linkArrowPositions(card.linkmarkers)) {
+    for (const arrow of linkArrowPositions(card.linkmarkers, renderScale)) {
       const base = await optionalAsset(`link/link-inactive-${arrow.index}-base.png`, arrow.width, arrow.height);
       const core = await optionalAsset(`link/link-inactive-${arrow.index}-core.png`, arrow.width, arrow.height);
       const activeBase = await optionalAsset(`link/link-active-${arrow.index}-base.png`, arrow.width, arrow.height);
       const activeCore = await optionalAsset(`link/link-active-${arrow.index}-core.png`, arrow.width, arrow.height);
-      if (base) composites.push({ input: base, left: arrow.left, top: arrow.top });
-      if (core) composites.push({ input: core, left: arrow.left, top: arrow.top });
-      if (activeBase) composites.push({ input: activeBase, left: arrow.left, top: arrow.top });
-      if (activeCore) composites.push({ input: activeCore, left: arrow.left, top: arrow.top });
+      if (base) composites.push({ input: base, left: Math.round(arrow.left), top: Math.round(arrow.top) });
+      if (core) composites.push({ input: core, left: Math.round(arrow.left), top: Math.round(arrow.top) });
+      if (activeBase) composites.push({ input: activeBase, left: Math.round(arrow.left), top: Math.round(arrow.top) });
+      if (activeCore) composites.push({ input: activeCore, left: Math.round(arrow.left), top: Math.round(arrow.top) });
     }
   }
 
-  const nameBorder = await optionalAsset(frame === "xyz" ? "frame/name-border-xyz.png" : "frame/name-border-normal.png");
+  const nameBorder = await optionalAsset(frame === "xyz" ? "frame/name-border-xyz.png" : "frame/name-border-normal.png", undefined, undefined, renderScale);
   if (nameBorder) composites.push({ input: nameBorder, left: 0, top: 0 });
 
-  const frameBorder = await optionalAsset(frame === "xyz" ? "frame/frame-border-xyz.png" : "frame/frame-border-normal.png", layout.width, layout.height);
+  const frameBorder = await optionalAsset(frame === "xyz" ? "frame/frame-border-xyz.png" : "frame/frame-border-normal.png", renderLayout.width, renderLayout.height);
   if (frameBorder) composites.push({ input: frameBorder, left: 0, top: 0 });
 
   if (isPendulum && frame !== "xyz") {
-    const pendulumFrameBorder = await optionalAsset("frame/frame-border-pendulum.png", layout.width, layout.height);
+    const pendulumFrameBorder = await optionalAsset("frame/frame-border-pendulum.png", renderLayout.width, renderLayout.height);
     if (pendulumFrameBorder) composites.push({ input: pendulumFrameBorder, left: 0, top: 0 });
   }
 
   if (card.attributeIconPath) {
     const attributePatch = {
-      left: Math.max(0, Math.round(layout.attribute.x - 22)),
-      top: Math.max(0, Math.round(layout.attribute.y - 12)),
-      width: Math.min(layout.width - Math.round(layout.attribute.x - 22), Math.round(layout.attribute.size + 44)),
-      height: Math.min(layout.height - Math.round(layout.attribute.y - 12), Math.round(layout.attribute.size + 24)),
+      left: Math.max(0, Math.round(renderLayout.attribute.x - scaledNumber(22, renderScale))),
+      top: Math.max(0, Math.round(renderLayout.attribute.y - scaledNumber(12, renderScale))),
+      width: Math.min(renderLayout.width - Math.round(renderLayout.attribute.x - scaledNumber(22, renderScale)), Math.round(renderLayout.attribute.size + scaledNumber(44, renderScale))),
+      height: Math.min(renderLayout.height - Math.round(renderLayout.attribute.y - scaledNumber(12, renderScale)), Math.round(renderLayout.attribute.size + scaledNumber(24, renderScale))),
     };
     composites.push({
-      input: await buildImagePatch(`frame/frame-${frame}.png`, attributePatch.left, attributePatch.top, attributePatch.width, attributePatch.height),
+      input: await buildImagePatch(`frame/frame-${frame}.png`, attributePatch.left, attributePatch.top, attributePatch.width, attributePatch.height, renderScale),
       left: attributePatch.left,
       top: attributePatch.top,
     });
@@ -915,16 +1006,16 @@ export async function renderCardImage(card: NormalizedCard, sourceImageBuffer: B
 
   if (card.attributeIconPath) {
     composites.push({
-      input: await buildAttributeIconAsset(card.attributeIconPath, layout.attribute.size),
-      left: layout.attribute.x,
-      top: layout.attribute.y,
+      input: await buildAttributeIconAsset(card.attributeIconPath, renderLayout.attribute.size),
+      left: Math.round(renderLayout.attribute.x),
+      top: Math.round(renderLayout.attribute.y),
     });
   }
 
   if (card.subfamilyIconPath && isSpellOrTrap(card)) {
-    const spellTrapSubfamily = spellTrapSubfamilyPlacement(layout);
+    const spellTrapSubfamily = spellTrapSubfamilyPlacement(renderLayout, renderScale);
     composites.push({
-      input: await buildResizedAsset(card.subfamilyIconPath, layout.subfamily.size, layout.subfamily.size),
+      input: await buildResizedAsset(card.subfamilyIconPath, renderLayout.subfamily.size, renderLayout.subfamily.size),
       left: spellTrapSubfamily.iconLeft,
       top: spellTrapSubfamily.iconTop,
     });
@@ -933,26 +1024,26 @@ export async function renderCardImage(card: NormalizedCard, sourceImageBuffer: B
   const starPath = frame === "xyz"
     ? assetPublicPath("subfamily/subfamily-rank.png")
     : assetPublicPath("subfamily/subfamily-level.png");
-  const starSize = frame === "xyz" ? layout.rankStars.size : layout.stars.size;
+  const starSize = frame === "xyz" ? renderLayout.rankStars.size : renderLayout.stars.size;
   const starBuffer = await buildResizedAsset(starPath, starSize, starSize);
   composites.push(
-    ...starPositions(card, layout).map((position) => ({
+    ...starPositions(card, renderLayout).map((position) => ({
       input: starBuffer,
-      left: position.left,
-      top: position.top,
+      left: Math.round(position.left),
+      top: Math.round(position.top),
     })),
   );
 
   composites.push({
-    input: await buildTextOverlay(card, layout),
+    input: await buildTextOverlay(card, renderLayout, renderScale),
     left: 0,
     top: 0,
   });
 
   const renderedBuffer = await sharp({
     create: {
-      width: layout.width,
-      height: layout.height,
+      width: renderLayout.width,
+      height: renderLayout.height,
       channels: 4,
       background: BASE_FILL_COLOR,
     },

@@ -11,8 +11,9 @@ export const maxDuration = 60;
 
 export async function POST(request: Request) {
   try {
-    const body = (await request.json()) as { cardId?: number; language?: "pt" | "en" };
+    const body = (await request.json()) as { cardId?: number; language?: "pt" | "en"; renderScale?: number };
     const language = body.language || "pt";
+    const renderScale = body.renderScale === 2 ? 2 : 1;
 
     if (!body.cardId) {
       return NextResponse.json({ error: "Carta nao informada." }, { status: 400 });
@@ -33,6 +34,7 @@ export async function POST(request: Request) {
       card,
       sourceImageBuffer,
       DEFAULT_CARD_LAYOUT,
+      { scale: renderScale },
     );
 
     return NextResponse.json({ card: renderedCard });
