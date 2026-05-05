@@ -18,7 +18,7 @@ const HARD_MIN_FONT_SIZE = 5;
 const PENDULUM_ARTWORK = { x: 56, y: 213, width: 702, height: 530 } as const;
 const PENDULUM_CLEAR_AREA = { left: 56, top: 213, width: 702, height: 910 } as const;
 const PENDULUM_EFFECT_BACKGROUND = { x: 55, y: 738, width: 705, height: 147 } as const;
-const PENDULUM_EFFECT_TEXT = { x: 129, y: 767, maxWidth: 555.47, maxHeight: 104 } as const;
+const PENDULUM_EFFECT_TEXT = { x: 124, y: 750, maxWidth: 566, maxHeight: 112 } as const;
 const PENDULUM_SCALE = { blueX: 84.4, redX: 728, y: 848.5, fontSize: 56.5 } as const;
 const PENDULUM_SCALE_ICON = { x: 0, y: 750 } as const;
 const PENDULUM_BORDER = { x: 30, y: 185 } as const;
@@ -440,6 +440,16 @@ function textGroup(lines: string[], x: number, firstBaseline: number, fontSize: 
     .join("");
 }
 
+function centeredTextGroup(
+  textBlock: FittedTextBlock,
+  box: { x: number; y: number; maxHeight: number },
+  className: string,
+): string {
+  const usedHeight = Math.max(textBlock.fontSize, textBlock.lines.length * textBlock.lineHeight);
+  const firstBaseline = box.y + Math.max(0, (box.maxHeight - usedHeight) / 2) + textBlock.fontSize * 0.9;
+  return textGroup(textBlock.lines, box.x, firstBaseline, textBlock.fontSize, textBlock.lineHeight, textBlock.scaleX, className);
+}
+
 function compressedText(
   text: string,
   x: number,
@@ -754,7 +764,7 @@ async function buildTextOverlay(card: NormalizedCard, layout: CardLayout): Promi
       ${compressedText(renderedName, layout.name.x, layout.name.y, name, "name")}
       ${typeLine ? compressedText(typeLineText(card), layout.typeLine.x, layout.typeLine.y, typeLine, "type") : ""}
       ${spellTrapTypeLine}
-      ${pendulumDescription ? textGroup(pendulumDescription.lines, PENDULUM_EFFECT_TEXT.x, PENDULUM_EFFECT_TEXT.y, pendulumDescription.fontSize, pendulumDescription.lineHeight, pendulumDescription.scaleX, "effect") : ""}
+      ${pendulumDescription ? centeredTextGroup(pendulumDescription, PENDULUM_EFFECT_TEXT, "effect") : ""}
       ${isPendulum ? `
         <text x="${PENDULUM_SCALE.blueX}" y="${PENDULUM_SCALE.y}" class="pendulum-scale" font-size="${PENDULUM_SCALE.fontSize}">${escapeXml(statText(card.pendulumScale ?? 0))}</text>
         <text x="${PENDULUM_SCALE.redX}" y="${PENDULUM_SCALE.y}" class="pendulum-scale" font-size="${PENDULUM_SCALE.fontSize}">${escapeXml(statText(card.pendulumScale ?? 0))}</text>
@@ -781,7 +791,7 @@ export async function renderCardImage(card: NormalizedCard, sourceImageBuffer: B
   const bottomFrame = isPendulum ? pendulumBottomFrameKey() : frame;
   const artworkLayout = isPendulum ? PENDULUM_ARTWORK : layout.artwork;
   const artworkBuffer = await sharp(sourceImageBuffer)
-    .resize(artworkLayout.width, artworkLayout.height, { fit: "cover", position: "center" })
+    .resize(artworkLayout.width, artworkLayout.height, { fit: "cover", position: isPendulum ? "north" : "center" })
     .png()
     .toBuffer();
   const composites: sharp.OverlayOptions[] = [
