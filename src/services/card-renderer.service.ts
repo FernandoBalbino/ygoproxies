@@ -15,6 +15,13 @@ const TEXT_COLOR = "#010101";
 const LIGHT_TEXT_COLOR = "#ffffff";
 const BASE_FILL_COLOR = "#404040";
 const HARD_MIN_FONT_SIZE = 5;
+const PENDULUM_ARTWORK = { x: 56, y: 213, width: 702, height: 530 } as const;
+const PENDULUM_CLEAR_AREA = { left: 56, top: 213, width: 702, height: 910 } as const;
+const PENDULUM_EFFECT_BACKGROUND = { x: 55, y: 738, width: 705, height: 147 } as const;
+const PENDULUM_EFFECT_TEXT = { x: 129, y: 746.29, maxWidth: 555.47, maxHeight: 122.6 } as const;
+const PENDULUM_SCALE = { blueX: 84.4, redX: 728, y: 848.5, fontSize: 56.5 } as const;
+const PENDULUM_SCALE_ICON = { x: 0, y: 750 } as const;
+const PENDULUM_BORDER = { x: 30, y: 185 } as const;
 
 const CARD_FONTS = {
   name: {
@@ -111,6 +118,16 @@ const NORMAL_FONT_LIST_TCG_TYPE_STAT: FontSizeData[] = [
   { fontSize: 12.99, lineHeight: 15, lineCount: 10 },
 ];
 
+const PENDULUM_EFFECT_FONT_LIST_TCG: FontSizeData[] = [
+  { fontSize: 50.3, lineHeight: 56.35, lineCount: 2 },
+  { fontSize: 35.3, lineHeight: 38.85, lineCount: 3 },
+  { fontSize: 26.3, lineHeight: 29.35, lineCount: 4 },
+  { fontSize: 24.3, lineHeight: 24.35, lineCount: 5 },
+  { fontSize: 19.5, lineHeight: 20.23, lineCount: 6 },
+  { fontSize: 17, lineHeight: 17.4, lineCount: 7 },
+  { fontSize: 14.7, lineHeight: 15.32, lineCount: 8 },
+];
+
 const CONDENSE_TOLERANCE_STRICT = 0.685;
 const DEFAULT_EFFECT_SIZE_LEVEL = 3;
 const NAME_LETTER_SPACING_RATIO = 0.028;
@@ -161,6 +178,8 @@ function svgFontFamily(font: CardFont): string {
 
 function frameKey(frameType: string): string {
   const normalized = frameType.toLowerCase();
+  if (normalized.endsWith("_pendulum")) return frameKey(normalized.replace("_pendulum", ""));
+  if (normalized.startsWith("pendulum_")) return frameKey(normalized.replace("pendulum_", ""));
   if (normalized === "xyz") return "xyz";
   if (normalized === "link") return "link";
   if (normalized === "spell") return "spell";
@@ -170,6 +189,11 @@ function frameKey(frameType: string): string {
   if (normalized === "synchro") return "synchro";
   if (normalized === "normal") return "normal";
   return "effect";
+}
+
+function isPendulumCard(card: NormalizedCard): boolean {
+  return card.frameType.includes("pendulum")
+    || card.typeline.some((term) => term.toLowerCase() === "pendulum" || term.toLowerCase() === "pendulo");
 }
 
 function isSpellOrTrap(card: NormalizedCard): boolean {
@@ -440,15 +464,16 @@ function statText(value?: number | null): string {
 }
 
 function starPositions(card: NormalizedCard, layout: CardLayout): Array<{ left: number; top: number }> {
-  if (!card.level || isSpellOrTrap(card) || card.frameType === "link") {
+  const frame = frameKey(card.frameType);
+  if (!card.level || isSpellOrTrap(card) || frame === "link") {
     return [];
   }
 
   const count = Math.min(Math.max(card.level, 0), 13);
-  const starLayout = card.frameType === "xyz" ? layout.rankStars : layout.stars;
+  const starLayout = frame === "xyz" ? layout.rankStars : layout.stars;
 
   return Array.from({ length: count }, (_, index) => ({
-    left: card.frameType === "xyz"
+    left: frame === "xyz"
       ? Math.round(starLayout.startX + index * (starLayout.size + starLayout.gap))
       : Math.round(starLayout.startX - index * (starLayout.size + starLayout.gap)),
     top: starLayout.y,
@@ -529,6 +554,23 @@ async function buildImageAsset(relativePath: string, width?: number, height?: nu
   return image.png().toBuffer();
 }
 
+async function buildImageAssetWithClearedArea(
+  relativePath: string,
+  clearArea: { left: number; top: number; width: number; height: number },
+): Promise<Buffer> {
+  const clearMask = Buffer.from(`
+    <svg width="${DEFAULT_CARD_LAYOUT.width}" height="${DEFAULT_CARD_LAYOUT.height}" xmlns="http://www.w3.org/2000/svg">
+      <rect x="${clearArea.left}" y="${clearArea.top}" width="${clearArea.width}" height="${clearArea.height}" fill="white" />
+    </svg>
+  `);
+
+  return sharp(assetPath(relativePath))
+    .ensureAlpha()
+    .composite([{ input: clearMask, blend: "dest-out" }])
+    .png()
+    .toBuffer();
+}
+
 async function buildImagePatch(relativePath: string, left: number, top: number, width: number, height: number): Promise<Buffer> {
   return sharp(assetPath(relativePath))
     .extract({ left, top, width, height })
@@ -546,6 +588,8 @@ async function optionalAsset(relativePath: string, width?: number, height?: numb
 }
 
 async function buildTextOverlay(card: NormalizedCard, layout: CardLayout): Promise<Buffer> {
+  const isPendulum = isPendulumCard(card);
+  const frame = frameKey(card.frameType);
   const renderedName = card.name;
   const nameMaxWidth = Math.max(
     180,
@@ -585,9 +629,18 @@ async function buildTextOverlay(card: NormalizedCard, layout: CardLayout): Promi
     descFont,
     descFontList,
   );
+  const pendulumDescription = isPendulum && card.pendulumDescription
+    ? await fitTextBlock(
+        card.pendulumDescription,
+        PENDULUM_EFFECT_TEXT.maxWidth,
+        PENDULUM_EFFECT_TEXT.maxHeight,
+        CARD_FONTS.effect,
+        PENDULUM_EFFECT_FONT_LIST_TCG,
+      )
+    : null;
   const atk = await fitSingleLine(statText(card.atk), 74, layout.atkDef.fontSize, 22, CARD_FONTS.statNumber, 0.7);
   const def = await fitSingleLine(
-    card.frameType === "link" ? statText(card.linkval ?? null) : statText(card.def),
+    frame === "link" ? statText(card.linkval ?? null) : statText(card.def),
     74,
     layout.atkDef.fontSize,
     22,
@@ -612,8 +665,8 @@ async function buildTextOverlay(card: NormalizedCard, layout: CardLayout): Promi
     ? `
       <text x="432.1" y="${layout.atkDef.y}" class="stat-label" font-size="35.73">ATK/</text>
       ${compressedText(statText(card.atk), 581.8, layout.atkDef.y + 0.5, atk, "stat-value", "end")}
-      <text x="${card.frameType === "link" ? 593 : 600.85}" y="${layout.atkDef.y}" class="stat-label" font-size="35.73">${card.frameType === "link" ? "LINK/" : "DEF/"}</text>
-      ${compressedText(card.frameType === "link" ? statText(card.linkval ?? null) : statText(card.def), 747.8, layout.atkDef.y + 0.5, def, "stat-value", "end")}
+      <text x="${frame === "link" ? 593 : 600.85}" y="${layout.atkDef.y}" class="stat-label" font-size="35.73">${frame === "link" ? "LINK/" : "DEF/"}</text>
+      ${compressedText(frame === "link" ? statText(card.linkval ?? null) : statText(card.def), 747.8, layout.atkDef.y + 0.5, def, "stat-value", "end")}
     `
     : "";
 
@@ -651,10 +704,21 @@ async function buildTextOverlay(card: NormalizedCard, layout: CardLayout): Promi
           font-family: ${svgFontFamily(CARD_FONTS.statNumber)};
           font-weight: normal;
         }
+        .pendulum-scale {
+          fill: ${TEXT_COLOR};
+          font-family: ${svgFontFamily(CARD_FONTS.statNumber)};
+          font-weight: normal;
+          text-anchor: middle;
+        }
       </style>
       ${compressedText(renderedName, layout.name.x, layout.name.y, name, "name")}
       ${typeLine ? compressedText(typeLineText(card), layout.typeLine.x, layout.typeLine.y, typeLine, "type") : ""}
       ${spellTrapTypeLine}
+      ${pendulumDescription ? textGroup(pendulumDescription.lines, PENDULUM_EFFECT_TEXT.x, PENDULUM_EFFECT_TEXT.y, pendulumDescription.fontSize, pendulumDescription.lineHeight, pendulumDescription.scaleX, "effect") : ""}
+      ${isPendulum ? `
+        <text x="${PENDULUM_SCALE.blueX}" y="${PENDULUM_SCALE.y}" class="pendulum-scale" font-size="${PENDULUM_SCALE.fontSize}">${escapeXml(statText(card.pendulumScale ?? 0))}</text>
+        <text x="${PENDULUM_SCALE.redX}" y="${PENDULUM_SCALE.y}" class="pendulum-scale" font-size="${PENDULUM_SCALE.fontSize}">${escapeXml(statText(card.pendulumScale ?? 0))}</text>
+      ` : ""}
       ${textGroup(description.lines, descLayout.x, descLayout.y, description.fontSize, description.lineHeight, description.scaleX, "effect")}
       ${statLine}
     </svg>
@@ -673,22 +737,34 @@ export async function renderCardImage(card: NormalizedCard, sourceImageBuffer: B
   }
 
   const frame = frameKey(card.frameType);
+  const isPendulum = isPendulumCard(card);
+  const artworkLayout = isPendulum ? PENDULUM_ARTWORK : layout.artwork;
   const artworkBuffer = await sharp(sourceImageBuffer)
-    .resize(layout.artwork.width, layout.artwork.height, { fit: "cover", position: "center" })
+    .resize(artworkLayout.width, artworkLayout.height, { fit: "cover", position: "center" })
     .png()
     .toBuffer();
   const composites: sharp.OverlayOptions[] = [
     {
       input: artworkBuffer,
-      left: layout.artwork.x,
-      top: layout.artwork.y,
+      left: artworkLayout.x,
+      top: artworkLayout.y,
     },
     {
-      input: await buildImageAsset(`frame/frame-${frame}.png`, layout.width, layout.height),
+      input: isPendulum
+        ? await buildImageAssetWithClearedArea(`frame/frame-${frame}.png`, PENDULUM_CLEAR_AREA)
+        : await buildImageAsset(`frame/frame-${frame}.png`, layout.width, layout.height),
       left: 0,
       top: 0,
     },
   ];
+
+  if (isPendulum) {
+    composites.push({
+      input: await buildImageAsset(`frame-pendulum/frame-pendulum-${frame}.png`, layout.width, layout.height),
+      left: 0,
+      top: 0,
+    });
+  }
 
   const cardBorder = await optionalAsset("frame/card-border-normal.png", layout.width, layout.height);
   if (cardBorder) composites.push({ input: cardBorder, left: 0, top: 0 });
@@ -699,12 +775,47 @@ export async function renderCardImage(card: NormalizedCard, sourceImageBuffer: B
   const effectBackground = await optionalAsset(`background/background-text-${frame}.png`);
   if (effectBackground) composites.push({ input: effectBackground, left: 54, top: 884 });
 
+  if (isPendulum) {
+    const pendulumBackground = await optionalAsset(
+      `background/background-pendulum-${frame}.png`,
+      PENDULUM_EFFECT_BACKGROUND.width,
+      PENDULUM_EFFECT_BACKGROUND.height,
+    );
+    if (pendulumBackground) {
+      composites.push({
+        input: pendulumBackground,
+        left: PENDULUM_EFFECT_BACKGROUND.x,
+        top: PENDULUM_EFFECT_BACKGROUND.y,
+      });
+    }
+  }
+
   const effectBorder = await optionalAsset("frame/effect-border-base.png");
   if (effectBorder) composites.push({ input: effectBorder, left: 35, top: 860 });
 
-  const artBorderSource = frame === "xyz" ? "frame/art-border-xyz.png" : "frame/art-border-base.png";
-  const artBorder = await optionalAsset(artBorderSource);
-  if (artBorder) composites.push({ input: artBorder, left: 60, top: 170 });
+  if (isPendulum) {
+    const pendulumScaleIcon = await optionalAsset("frame-pendulum/pendulum-scale-medium.png");
+    if (pendulumScaleIcon) {
+      composites.push({
+        input: pendulumScaleIcon,
+        left: PENDULUM_SCALE_ICON.x,
+        top: PENDULUM_SCALE_ICON.y,
+      });
+    }
+
+    const pendulumBorder = await optionalAsset("frame-pendulum/border-pendulum-medium-base.png");
+    if (pendulumBorder) {
+      composites.push({
+        input: pendulumBorder,
+        left: PENDULUM_BORDER.x,
+        top: PENDULUM_BORDER.y,
+      });
+    }
+  } else {
+    const artBorderSource = frame === "xyz" ? "frame/art-border-xyz.png" : "frame/art-border-base.png";
+    const artBorder = await optionalAsset(artBorderSource);
+    if (artBorder) composites.push({ input: artBorder, left: 60, top: 170 });
+  }
 
   if (frame === "link") {
     for (const arrow of linkArrowPositions(card.linkmarkers)) {
@@ -724,6 +835,11 @@ export async function renderCardImage(card: NormalizedCard, sourceImageBuffer: B
 
   const frameBorder = await optionalAsset(frame === "xyz" ? "frame/frame-border-xyz.png" : "frame/frame-border-normal.png", layout.width, layout.height);
   if (frameBorder) composites.push({ input: frameBorder, left: 0, top: 0 });
+
+  if (isPendulum && frame !== "xyz") {
+    const pendulumFrameBorder = await optionalAsset("frame/frame-border-pendulum.png", layout.width, layout.height);
+    if (pendulumFrameBorder) composites.push({ input: pendulumFrameBorder, left: 0, top: 0 });
+  }
 
   if (card.attributeIconPath) {
     const attributePatch = {
@@ -756,10 +872,10 @@ export async function renderCardImage(card: NormalizedCard, sourceImageBuffer: B
     });
   }
 
-  const starPath = card.frameType === "xyz"
+  const starPath = frame === "xyz"
     ? assetPublicPath("subfamily/subfamily-rank.png")
     : assetPublicPath("subfamily/subfamily-level.png");
-  const starSize = card.frameType === "xyz" ? layout.rankStars.size : layout.stars.size;
+  const starSize = frame === "xyz" ? layout.rankStars.size : layout.stars.size;
   const starBuffer = await buildResizedAsset(starPath, starSize, starSize);
   composites.push(
     ...starPositions(card, layout).map((position) => ({

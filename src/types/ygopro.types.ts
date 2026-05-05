@@ -13,6 +13,8 @@ export interface YgoProCard {
   humanReadableCardType?: string;
   frameType: string;
   desc: string;
+  monster_desc?: string;
+  pend_desc?: string;
   race?: string;
   atk?: number;
   def?: number;

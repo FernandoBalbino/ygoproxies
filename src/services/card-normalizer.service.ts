@@ -19,6 +19,12 @@ const TYPE_TRANSLATIONS: Record<string, string> = {
   "Ritual Monster": "Monstro Ritual",
   "Ritual Effect Monster": "Monstro Ritual de Efeito",
   "Fusion Monster": "Monstro de Fusão",
+  "Pendulum Normal Monster": "Monstro Pendulo Normal",
+  "Pendulum Effect Monster": "Monstro Pendulo de Efeito",
+  "Pendulum Effect Fusion Monster": "Monstro Pendulo de Fusao",
+  "Pendulum Effect Ritual Monster": "Monstro Pendulo Ritual",
+  "Pendulum Effect Synchro Monster": "Monstro Pendulo Sincro",
+  "Pendulum Effect Xyz Monster": "Monstro Pendulo XYZ",
   "Synchro Monster": "Monstro Sincro",
   "Synchro Tuner Monster": "Monstro Sincro Regulador",
   "XYZ Monster": "Monstro XYZ",
@@ -77,6 +83,7 @@ const TYPELINE_TRANSLATIONS: Record<string, string> = {
   Spirit: "Spirit",
   Toon: "Toon",
   Union: "Union",
+  Pendulum: "Pendulo",
 };
 
 function translateTerm(value: string, dictionary: Record<string, string>): string {
@@ -112,6 +119,45 @@ function normalizeTypeline(card: YgoProCard, language: "pt" | "en"): string[] {
   return [...race, ...formattedPieces];
 }
 
+function isPendulumCard(card: YgoProCard): boolean {
+  return card.frameType.toLowerCase().includes("pendulum")
+    || card.type.toLowerCase().includes("pendulum")
+    || card.typeline?.some((type) => type.toLowerCase() === "pendulum") === true;
+}
+
+function stripYgoQuotes(value?: string): string {
+  return value?.replaceAll(/^''|''$/g, "").trim() ?? "";
+}
+
+function splitPendulumDescription(description: string): { monsterDescription: string; pendulumDescription: string } {
+  const normalized = description.replaceAll("\r\n", "\n").replaceAll("\r", "\n");
+  const match = normalized.match(/\[?\s*Pendulum Effect\s*\]?\n([\s\S]*?)\n\[?\s*Monster Effect\s*\]?\n([\s\S]*)/i);
+
+  if (!match) {
+    return {
+      monsterDescription: normalized,
+      pendulumDescription: "",
+    };
+  }
+
+  return {
+    pendulumDescription: match[1]?.trim() ?? "",
+    monsterDescription: match[2]?.trim() ?? normalized,
+  };
+}
+
+function normalizeDescriptions(card: YgoProCard): { monsterDescription: string; pendulumDescription?: string } {
+  if (!isPendulumCard(card)) {
+    return { monsterDescription: card.desc };
+  }
+
+  const fallback = splitPendulumDescription(card.desc);
+  return {
+    monsterDescription: stripYgoQuotes(card.monster_desc) || fallback.monsterDescription,
+    pendulumDescription: stripYgoQuotes(card.pend_desc) || fallback.pendulumDescription,
+  };
+}
+
 export function translateCardData(card: YgoProCard): YgoProCard {
   return card;
 }
@@ -123,6 +169,7 @@ export function normalizeCardDataToPortuguese(card: YgoProCard): NormalizedCard 
 export function normalizeCardData(card: YgoProCard, language: "pt" | "en" = "pt"): NormalizedCard {
   const firstImage = card.card_images?.[0];
   const frameType = card.frameType.toLowerCase();
+  const descriptions = normalizeDescriptions(card);
   const croppedImageUrl = firstImage?.image_url_cropped ?? firstImage?.image_url ?? "";
   const unsupportedReason = getUnsupportedReason(card.type, frameType);
   const isSupported = !unsupportedReason;
@@ -133,7 +180,8 @@ export function normalizeCardData(card: YgoProCard, language: "pt" | "en" = "pt"
     imageId: firstImage?.id ?? card.id,
     name: card.name,
     originalName: card.name_en,
-    desc: card.desc,
+    desc: descriptions.monsterDescription,
+    pendulumDescription: descriptions.pendulumDescription,
     type: language === "pt" ? translateTerm(card.type, TYPE_TRANSLATIONS) : card.type,
     humanReadableCardType: language === "pt" ? translateTerm(card.humanReadableCardType ?? card.type, TYPE_TRANSLATIONS) : (card.humanReadableCardType ?? card.type),
     frameType,
@@ -142,6 +190,7 @@ export function normalizeCardData(card: YgoProCard, language: "pt" | "en" = "pt"
     atk: card.atk ?? null,
     def: card.def ?? null,
     level: card.level ?? null,
+    pendulumScale: card.scale ?? null,
     attribute: card.attribute ?? null,
     linkval: card.linkval ?? null,
     linkmarkers: card.linkmarkers ?? [],

@@ -5,13 +5,20 @@ export const UNSUPPORTED_CARD_MESSAGE = "Este tipo de carta ainda não é suport
 const MAIN_DECK_FRAMES = new Set(["normal", "effect", "ritual", "spell", "trap"]);
 const EXTRA_DECK_FRAMES = new Set(["fusion", "synchro", "xyz", "link"]);
 
-export function getUnsupportedReason(type: string, frameType: string): string | undefined {
-  const typeText = type.toLowerCase();
+function baseFrameType(frameType: string): string {
   const frame = frameType.toLowerCase();
-
-  if (frame.includes("pendulum") || typeText.includes("pendulum") || typeText.includes("pêndulo")) {
-    return UNSUPPORTED_CARD_MESSAGE;
+  if (frame.endsWith("_pendulum")) {
+    return frame.replace("_pendulum", "");
   }
+  if (frame.startsWith("pendulum_")) {
+    return frame.replace("pendulum_", "");
+  }
+
+  return frame;
+}
+
+export function getUnsupportedReason(_type: string, frameType: string): string | undefined {
+  const frame = baseFrameType(frameType);
 
   if (!MAIN_DECK_FRAMES.has(frame) && !EXTRA_DECK_FRAMES.has(frame)) {
     return UNSUPPORTED_CARD_MESSAGE;
@@ -26,7 +33,7 @@ export function getDeckType(type: string, frameType: string): DeckType {
     throw new Error(unsupported);
   }
 
-  const frame = frameType.toLowerCase();
+  const frame = baseFrameType(frameType);
   if (EXTRA_DECK_FRAMES.has(frame)) {
     return "extra";
   }

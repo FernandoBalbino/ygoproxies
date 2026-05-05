@@ -12,8 +12,15 @@ export const TEMPLATE_MAP: Record<SupportedFrameType, string> = {
   trap: "/assets/ygocarder/asset/image/frame/frame-trap.png",
 };
 
-export function getTemplateByFrameType(frameType: string): string | null {
+function baseFrameType(frameType: string): string {
   const key = frameType.toLowerCase();
+  if (key.endsWith("_pendulum")) return key.replace("_pendulum", "");
+  if (key.startsWith("pendulum_")) return key.replace("pendulum_", "");
+  return key;
+}
+
+export function getTemplateByFrameType(frameType: string): string | null {
+  const key = baseFrameType(frameType);
   if (key in TEMPLATE_MAP) {
     return TEMPLATE_MAP[key as SupportedFrameType];
   }

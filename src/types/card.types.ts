@@ -17,6 +17,7 @@ export interface NormalizedCard {
   name: string;
   originalName?: string;
   desc: string;
+  pendulumDescription?: string;
   type: string;
   humanReadableCardType: string;
   frameType: string;
@@ -25,6 +26,7 @@ export interface NormalizedCard {
   atk?: number | null;
   def?: number | null;
   level?: number | null;
+  pendulumScale?: number | null;
   attribute?: string | null;
   linkval?: number | null;
   linkmarkers?: string[];
