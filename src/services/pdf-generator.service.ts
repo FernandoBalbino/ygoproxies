@@ -2,11 +2,14 @@ import { PDFDocument } from "pdf-lib";
 import { A4_SIZE_MM, CARD_SIZE_MM } from "@/config/card-layout";
 import type { DeckCard } from "@/types/deck.types";
 
+export type PdfQualityMode = "free" | "full-hd";
+
 const MM_TO_PT = 72 / 25.4;
 const CARDS_PER_PAGE = 9;
 const COLUMNS = 3;
 const ROWS = 3;
 const GAP_MM = 2;
+const FREE_JPEG_QUALITY = 0.7;
 
 function mmToPt(value: number): number {
   return value * MM_TO_PT;
@@ -27,7 +30,48 @@ function dataUrlToBytes(dataUrl: string): Uint8Array {
   return bytes;
 }
 
-export async function generateDeckPdf(cards: DeckCard[]): Promise<Blob> {
+function blobToBytes(blob: Blob): Promise<Uint8Array> {
+  return blob.arrayBuffer().then((buffer) => new Uint8Array(buffer));
+}
+
+function loadImage(dataUrl: string): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    const image = new Image();
+    image.onload = () => resolve(image);
+    image.onerror = () => reject(new Error("Imagem renderizada invalida."));
+    image.src = dataUrl;
+  });
+}
+
+async function dataUrlToJpegBytes(dataUrl: string, quality: number): Promise<Uint8Array> {
+  const image = await loadImage(dataUrl);
+  const canvas = document.createElement("canvas");
+  canvas.width = image.naturalWidth;
+  canvas.height = image.naturalHeight;
+
+  const context = canvas.getContext("2d");
+  if (!context) {
+    throw new Error("Nao foi possivel preparar a imagem do PDF.");
+  }
+
+  context.fillStyle = "#ffffff";
+  context.fillRect(0, 0, canvas.width, canvas.height);
+  context.drawImage(image, 0, 0);
+
+  const blob = await new Promise<Blob>((resolve, reject) => {
+    canvas.toBlob((result) => {
+      if (result) {
+        resolve(result);
+      } else {
+        reject(new Error("Nao foi possivel comprimir a imagem."));
+      }
+    }, "image/jpeg", quality);
+  });
+
+  return blobToBytes(blob);
+}
+
+export async function generateDeckPdf(cards: DeckCard[], qualityMode: PdfQualityMode = "full-hd"): Promise<Blob> {
   if (!cards.length) {
     throw new Error("Adicione pelo menos uma carta ao deck.");
   }
@@ -52,8 +96,9 @@ export async function generateDeckPdf(cards: DeckCard[]): Promise<Blob> {
     const pageIndex = index % CARDS_PER_PAGE;
     const column = pageIndex % COLUMNS;
     const row = Math.floor(pageIndex / COLUMNS);
-    const imageBytes = dataUrlToBytes(cards[index].renderedImageDataUrl);
-    const image = await pdf.embedPng(imageBytes);
+    const image = qualityMode === "free"
+      ? await pdf.embedJpg(await dataUrlToJpegBytes(cards[index].renderedImageDataUrl, FREE_JPEG_QUALITY))
+      : await pdf.embedPng(dataUrlToBytes(cards[index].renderedImageDataUrl));
 
     page.drawImage(image, {
       x: marginX + column * (cardWidth + gap),
@@ -70,12 +115,12 @@ export async function generateDeckPdf(cards: DeckCard[]): Promise<Blob> {
   return new Blob([pdfBuffer], { type: "application/pdf" });
 }
 
-export async function downloadDeckPdf(cards: DeckCard[]): Promise<void> {
-  const blob = await generateDeckPdf(cards);
+export async function downloadDeckPdf(cards: DeckCard[], qualityMode: PdfQualityMode = "full-hd"): Promise<void> {
+  const blob = await generateDeckPdf(cards, qualityMode);
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.href = url;
-  link.download = "yugioh-proxies.pdf";
+  link.download = qualityMode === "free" ? "yugioh-proxies-gratis.pdf" : "yugioh-proxies-full-hd.pdf";
   link.click();
   URL.revokeObjectURL(url);
 }

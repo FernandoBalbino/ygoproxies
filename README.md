@@ -23,6 +23,19 @@ Abra `http://localhost:3000`.
 
 O projeto esta preparado para deploy na Vercel sem persistir cartas geradas no filesystem da funcao. As pastas locais `public/cache/` e `public/generated/` continuam ignoradas para evitar que sobras de desenvolvimento sejam publicadas.
 
+Para Pix Mercado Pago, configure as variaveis:
+
+- `NEXT_PUBLIC_MERCADO_PAGO_PUBLIC_KEY`
+- `MERCADO_PAGO_ACCESS_TOKEN`
+- `MERCADO_PAGO_WEBHOOK_SECRET`
+- `MERCADO_PAGO_WEBHOOK_URL`
+
+O webhook da aplicacao fica em:
+
+```text
+/api/mercado-pago/webhook?source_news=webhooks
+```
+
 Os assets usados pela geracao ficam em:
 
 - `public/assets/ygocarder/asset/image`

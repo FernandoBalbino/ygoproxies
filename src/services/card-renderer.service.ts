@@ -499,7 +499,7 @@ function spellTrapSubfamilyPlacement(layout: CardLayout): { iconLeft: number; ic
     iconLeft,
     iconTop: Math.round(layout.subfamily.y),
     closeBracketX,
-    textRightX: iconLeft + 10,
+    textRightX: iconLeft - 8,
   };
 }
 

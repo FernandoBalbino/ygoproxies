@@ -1,6 +1,6 @@
 "use client";
 
-import { FileDown } from "lucide-react";
+import { CheckCircle2, Copy, FileDown, Loader2, QrCode } from "lucide-react";
 import { useState } from "react";
 import { downloadDeckPdf } from "@/services/pdf-generator.service";
 import type { DeckCard } from "@/types/deck.types";
@@ -10,31 +10,229 @@ interface GeneratePdfButtonProps {
   onError: (message: string) => void;
 }
 
-export function GeneratePdfButton({ cards, onError }: GeneratePdfButtonProps) {
-  const [isGenerating, setIsGenerating] = useState(false);
+interface PixPayment {
+  id: number;
+  status: string;
+  statusDetail: string;
+  qrCode: string;
+  qrCodeBase64: string;
+  ticketUrl: string;
+}
 
-  async function handleGeneratePdf() {
-    setIsGenerating(true);
+export function GeneratePdfButton({ cards, onError }: GeneratePdfButtonProps) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [isGeneratingFree, setIsGeneratingFree] = useState(false);
+  const [isGeneratingFullHd, setIsGeneratingFullHd] = useState(false);
+  const [isCheckingPayment, setIsCheckingPayment] = useState(false);
+  const [payerEmail, setPayerEmail] = useState("");
+  const [payerName, setPayerName] = useState("");
+  const [payment, setPayment] = useState<PixPayment | null>(null);
+  const [paymentMessage, setPaymentMessage] = useState("");
+
+  async function handleDownloadFree() {
+    setIsGeneratingFree(true);
     onError("");
 
     try {
-      await downloadDeckPdf(cards);
+      await downloadDeckPdf(cards, "free");
     } catch (error) {
       onError(error instanceof Error ? error.message : "Falha ao gerar PDF.");
     } finally {
-      setIsGenerating(false);
+      setIsGeneratingFree(false);
     }
   }
 
+  async function handleCreatePix() {
+    const email = payerEmail.trim();
+    if (!email) {
+      onError("Informe o e-mail para gerar o Pix.");
+      return;
+    }
+
+    setIsGeneratingFullHd(true);
+    setPaymentMessage("");
+    onError("");
+
+    try {
+      const [firstName, ...lastNameParts] = payerName.trim().split(/\s+/).filter(Boolean);
+      const response = await fetch("/api/mercado-pago/pix", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email,
+          firstName,
+          lastName: lastNameParts.join(" "),
+        }),
+      });
+      const payload = (await response.json()) as { payment?: PixPayment; error?: string };
+
+      if (!response.ok || !payload.payment) {
+        throw new Error(payload.error ?? "Falha ao gerar Pix.");
+      }
+
+      setPayment(payload.payment);
+      setPaymentMessage("Pix gerado.");
+    } catch (error) {
+      onError(error instanceof Error ? error.message : "Falha ao gerar Pix.");
+    } finally {
+      setIsGeneratingFullHd(false);
+    }
+  }
+
+  async function handleCheckPayment() {
+    if (!payment) return;
+
+    setIsCheckingPayment(true);
+    setPaymentMessage("");
+    onError("");
+
+    try {
+      const response = await fetch(`/api/mercado-pago/payments/${payment.id}`);
+      const payload = (await response.json()) as {
+        payment?: { status: string; statusDetail: string };
+        error?: string;
+      };
+
+      if (!response.ok || !payload.payment) {
+        throw new Error(payload.error ?? "Falha ao verificar pagamento.");
+      }
+
+      setPayment((current) => current
+        ? { ...current, status: payload.payment?.status ?? current.status, statusDetail: payload.payment?.statusDetail ?? current.statusDetail }
+        : current);
+
+      setPaymentMessage(payload.payment.status === "approved" ? "Pagamento aprovado." : "Aguardando pagamento.");
+    } catch (error) {
+      onError(error instanceof Error ? error.message : "Falha ao verificar pagamento.");
+    } finally {
+      setIsCheckingPayment(false);
+    }
+  }
+
+  async function handleDownloadFullHd() {
+    setIsGeneratingFullHd(true);
+    onError("");
+
+    try {
+      await downloadDeckPdf(cards, "full-hd");
+    } catch (error) {
+      onError(error instanceof Error ? error.message : "Falha ao gerar PDF FULL HD.");
+    } finally {
+      setIsGeneratingFullHd(false);
+    }
+  }
+
+  async function handleCopyPix() {
+    if (!payment?.qrCode) return;
+    await navigator.clipboard.writeText(payment.qrCode);
+    setPaymentMessage("Pix copiado.");
+  }
+
+  const hasCards = cards.length > 0;
+  const isPaymentApproved = payment?.status === "approved";
+
   return (
-    <button
-      type="button"
-      onClick={handleGeneratePdf}
-      disabled={!cards.length || isGenerating}
-      className="inline-flex min-h-14 w-full items-center justify-center gap-2 rounded-lg bg-red-800 px-5 py-4 text-base font-black text-white shadow-card transition active:scale-[0.99] disabled:cursor-not-allowed disabled:bg-stone-400"
-    >
-      <FileDown size={21} />
-      {isGenerating ? "Gerando..." : "Gerar PDF"}
-    </button>
+    <section className="space-y-3">
+      <button
+        type="button"
+        onClick={() => setIsOpen((current) => !current)}
+        disabled={!hasCards}
+        className="inline-flex min-h-14 w-full items-center justify-center gap-2 rounded-lg bg-red-800 px-5 py-4 text-base font-black text-white shadow-card transition active:scale-[0.99] disabled:cursor-not-allowed disabled:bg-stone-400"
+      >
+        <FileDown size={21} />
+        Gerar PDF
+      </button>
+
+      {isOpen ? (
+        <div className="grid gap-3 rounded-lg border border-stone-200 bg-white p-3 shadow-card">
+          <button
+            type="button"
+            onClick={handleDownloadFree}
+            disabled={!hasCards || isGeneratingFree}
+            className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-lg border border-stone-300 bg-stone-50 px-4 text-sm font-black text-stone-950 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {isGeneratingFree ? <Loader2 className="animate-spin" size={18} /> : <FileDown size={18} />}
+            Baixar gratis 70%
+          </button>
+
+          <div className="grid gap-2 rounded-lg border border-emerald-200 bg-emerald-50 p-3">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-sm font-black text-stone-950">FULL HD</p>
+                <p className="text-xs font-bold text-emerald-800">R$ 4,99</p>
+              </div>
+              {isPaymentApproved ? <CheckCircle2 className="text-emerald-800" size={22} /> : <QrCode className="text-emerald-800" size={22} />}
+            </div>
+
+            {!payment ? (
+              <div className="grid gap-2">
+                <input
+                  value={payerName}
+                  onChange={(event) => setPayerName(event.target.value)}
+                  placeholder="Nome"
+                  className="min-h-11 rounded-lg border border-emerald-200 bg-white px-3 text-sm font-bold text-stone-950 outline-none focus:border-emerald-800"
+                />
+                <input
+                  value={payerEmail}
+                  onChange={(event) => setPayerEmail(event.target.value)}
+                  type="email"
+                  placeholder="E-mail"
+                  className="min-h-11 rounded-lg border border-emerald-200 bg-white px-3 text-sm font-bold text-stone-950 outline-none focus:border-emerald-800"
+                />
+                <button
+                  type="button"
+                  onClick={handleCreatePix}
+                  disabled={!hasCards || isGeneratingFullHd}
+                  className="inline-flex min-h-12 items-center justify-center gap-2 rounded-lg bg-emerald-800 px-4 text-sm font-black text-white active:scale-[0.99] disabled:cursor-not-allowed disabled:bg-stone-400"
+                >
+                  {isGeneratingFullHd ? <Loader2 className="animate-spin" size={18} /> : <QrCode size={18} />}
+                  Gerar Pix
+                </button>
+              </div>
+            ) : (
+              <div className="grid gap-3">
+                <div className="rounded-lg bg-white p-2">
+                  <img
+                    src={`data:image/jpeg;base64,${payment.qrCodeBase64}`}
+                    alt="QR Code Pix"
+                    className="mx-auto h-52 w-52"
+                  />
+                </div>
+                <button
+                  type="button"
+                  onClick={handleCopyPix}
+                  className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-emerald-300 bg-white px-3 text-sm font-black text-emerald-900"
+                >
+                  <Copy size={17} />
+                  Copiar Pix
+                </button>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={handleCheckPayment}
+                    disabled={isCheckingPayment}
+                    className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-emerald-300 bg-white px-3 text-sm font-black text-emerald-900 disabled:opacity-60"
+                  >
+                    {isCheckingPayment ? <Loader2 className="animate-spin" size={17} /> : null}
+                    Verificar
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleDownloadFullHd}
+                    disabled={!isPaymentApproved || isGeneratingFullHd}
+                    className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-emerald-800 px-3 text-sm font-black text-white disabled:cursor-not-allowed disabled:bg-stone-400"
+                  >
+                    Baixar FULL HD
+                  </button>
+                </div>
+                <p className="text-xs font-bold text-stone-600">Payment ID: {payment.id}</p>
+              </div>
+            )}
+
+            {paymentMessage ? <p className="text-xs font-black text-emerald-900">{paymentMessage}</p> : null}
+          </div>
+        </div>
+      ) : null}
+    </section>
   );
 }
