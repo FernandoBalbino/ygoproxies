@@ -45,3 +45,108 @@ img {
 .wrap-anywhere {
   overflow-wrap: anywhere;
 }
+
+.ygo-card-back-loader {
+  position: relative;
+  overflow: hidden;
+  background: #120907;
+  box-shadow:
+    0 12px 22px rgba(28, 25, 23, 0.22),
+    inset 0 0 0 1px rgba(255, 184, 77, 0.38);
+  transform-origin: center;
+  animation: ygo-card-float 1.8s ease-in-out infinite;
+}
+
+.ygo-card-back-loader::after {
+  position: absolute;
+  inset: -35%;
+  content: "";
+  background:
+    radial-gradient(circle at 36% 30%, rgba(255, 190, 83, 0.38), transparent 22%),
+    conic-gradient(from 210deg, transparent, rgba(255, 126, 25, 0.32), transparent, rgba(75, 45, 255, 0.2), transparent);
+  mix-blend-mode: screen;
+  opacity: 0.75;
+  animation: ygo-card-glow 1.35s linear infinite;
+}
+
+.ygo-card-back-swirl {
+  transform-origin: 59px 86px;
+  animation: ygo-card-swirl 1.45s linear infinite;
+}
+
+.ygo-card-back-spark {
+  stroke-dasharray: 92;
+  stroke-dashoffset: 92;
+  animation: ygo-card-spark 1.8s ease-in-out infinite;
+}
+
+.ygo-search-shimmer {
+  position: relative;
+  overflow: hidden;
+}
+
+.ygo-search-shimmer::after {
+  position: absolute;
+  inset: 0;
+  content: "";
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.75), transparent);
+  transform: translateX(-100%);
+  animation: ygo-search-shimmer 1.25s ease-in-out infinite;
+}
+
+@keyframes ygo-card-float {
+  0%,
+  100% {
+    transform: translateY(0) rotate(-1.5deg);
+  }
+
+  50% {
+    transform: translateY(-4px) rotate(1.5deg);
+  }
+}
+
+@keyframes ygo-card-glow {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes ygo-card-swirl {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes ygo-card-spark {
+  0%,
+  22% {
+    stroke-dashoffset: 92;
+    opacity: 0.2;
+  }
+
+  54% {
+    stroke-dashoffset: 0;
+    opacity: 0.9;
+  }
+
+  100% {
+    stroke-dashoffset: -92;
+    opacity: 0.2;
+  }
+}
+
+@keyframes ygo-search-shimmer {
+  to {
+    transform: translateX(100%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ygo-card-back-loader,
+  .ygo-card-back-loader::after,
+  .ygo-card-back-swirl,
+  .ygo-card-back-spark,
+  .ygo-search-shimmer::after {
+    animation: none;
+  }
+}

@@ -30,9 +30,15 @@ export function SearchHintModal() {
         aria-labelledby="search-hint-title"
         className="w-full max-w-sm rounded-lg border border-stone-200 bg-white p-5 text-center shadow-[0_24px_60px_rgba(0,0,0,0.32)]"
       >
-        <h2 id="search-hint-title" className="text-xl font-black text-stone-950">Dica de busca</h2>
+        <h2
+          id="search-hint-title"
+          className="text-xl font-black text-stone-950"
+        >
+          Dica de busca
+        </h2>
         <p className="mt-2 text-sm font-bold leading-snug text-stone-600">
-          Se nao achar em portugues, tente o nome em ingles. Usamos a base completa do YGOPro.
+          Se não achar a carta que procura em português, tente o nome em inglês.
+          Usamos a base completa do YGOPro.
         </p>
         <button
           type="button"

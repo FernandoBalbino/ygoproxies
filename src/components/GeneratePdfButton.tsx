@@ -1,8 +1,18 @@
 "use client";
 
-import { CheckCircle2, Copy, FileDown, Loader2, Printer, QrCode } from "lucide-react";
+import {
+  CheckCircle2,
+  Copy,
+  FileDown,
+  Loader2,
+  Printer,
+  QrCode,
+} from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { downloadDeckPdf, type PdfGenerationProgress } from "@/services/pdf-generator.service";
+import {
+  downloadDeckPdf,
+  type PdfGenerationProgress,
+} from "@/services/pdf-generator.service";
 import type { DeckCard } from "@/types/deck.types";
 
 interface GeneratePdfButtonProps {
@@ -21,7 +31,8 @@ interface PixPayment {
 
 function readMercadoPagoDeviceId(): string | undefined {
   const input = document.getElementById("deviceId") as HTMLInputElement | null;
-  const deviceId = window.deviceId || window.MP_DEVICE_SESSION_ID || input?.value;
+  const deviceId =
+    window.deviceId || window.MP_DEVICE_SESSION_ID || input?.value;
   return deviceId?.trim() || undefined;
 }
 
@@ -37,7 +48,10 @@ async function waitForMercadoPagoDeviceId(): Promise<string | undefined> {
 
 export function GeneratePdfButton({ cards, onError }: GeneratePdfButtonProps) {
   const deckSignature = useMemo(
-    () => cards.map((card) => `${card.deckType}:${card.instanceId}:${card.id}`).join("|"),
+    () =>
+      cards
+        .map((card) => `${card.deckType}:${card.instanceId}:${card.id}`)
+        .join("|"),
     [cards],
   );
   const previousDeckSignature = useRef(deckSignature);
@@ -49,7 +63,8 @@ export function GeneratePdfButton({ cards, onError }: GeneratePdfButtonProps) {
   const [payerName, setPayerName] = useState("");
   const [payment, setPayment] = useState<PixPayment | null>(null);
   const [paymentMessage, setPaymentMessage] = useState("");
-  const [fullHdProgress, setFullHdProgress] = useState<PdfGenerationProgress | null>(null);
+  const [fullHdProgress, setFullHdProgress] =
+    useState<PdfGenerationProgress | null>(null);
 
   useEffect(() => {
     if (previousDeckSignature.current === deckSignature) {
@@ -61,7 +76,9 @@ export function GeneratePdfButton({ cards, onError }: GeneratePdfButtonProps) {
     if (payment) {
       setPayment(null);
       setIsCheckingPayment(false);
-      setPaymentMessage("Deck alterado. Gere um novo Pix para baixar em FULL HD.");
+      setPaymentMessage(
+        "Deck alterado. Gere um novo Pix para baixar em FULL HD.",
+      );
     }
   }, [deckSignature, payment]);
 
@@ -90,7 +107,10 @@ export function GeneratePdfButton({ cards, onError }: GeneratePdfButtonProps) {
     onError("");
 
     try {
-      const [firstName, ...lastNameParts] = payerName.trim().split(/\s+/).filter(Boolean);
+      const [firstName, ...lastNameParts] = payerName
+        .trim()
+        .split(/\s+/)
+        .filter(Boolean);
       const deviceId = await waitForMercadoPagoDeviceId();
       const response = await fetch("/api/mercado-pago/pix", {
         method: "POST",
@@ -102,7 +122,10 @@ export function GeneratePdfButton({ cards, onError }: GeneratePdfButtonProps) {
           deviceId,
         }),
       });
-      const payload = (await response.json()) as { payment?: PixPayment; error?: string };
+      const payload = (await response.json()) as {
+        payment?: PixPayment;
+        error?: string;
+      };
 
       if (!response.ok || !payload.payment) {
         throw new Error(payload.error ?? "Falha ao gerar Pix.");
@@ -135,13 +158,28 @@ export function GeneratePdfButton({ cards, onError }: GeneratePdfButtonProps) {
         throw new Error(payload.error ?? "Falha ao verificar pagamento.");
       }
 
-      setPayment((current) => current
-        ? { ...current, status: payload.payment?.status ?? current.status, statusDetail: payload.payment?.statusDetail ?? current.statusDetail }
-        : current);
+      setPayment((current) =>
+        current
+          ? {
+              ...current,
+              status: payload.payment?.status ?? current.status,
+              statusDetail:
+                payload.payment?.statusDetail ?? current.statusDetail,
+            }
+          : current,
+      );
 
-      setPaymentMessage(payload.payment.status === "approved" ? "Pagamento aprovado." : "Aguardando pagamento.");
+      setPaymentMessage(
+        payload.payment.status === "approved"
+          ? "Pagamento aprovado."
+          : "Aguardando pagamento.",
+      );
     } catch (error) {
-      onError(error instanceof Error ? error.message : "Falha ao verificar pagamento.");
+      onError(
+        error instanceof Error
+          ? error.message
+          : "Falha ao verificar pagamento.",
+      );
     } finally {
       setIsCheckingPayment(false);
     }
@@ -169,7 +207,10 @@ export function GeneratePdfButton({ cards, onError }: GeneratePdfButtonProps) {
 
         setPayment((current) => {
           if (!current || !payload.payment) return current;
-          if (current.status === payload.payment.status && current.statusDetail === payload.payment.statusDetail) {
+          if (
+            current.status === payload.payment.status &&
+            current.statusDetail === payload.payment.statusDetail
+          ) {
             return current;
           }
 
@@ -207,7 +248,9 @@ export function GeneratePdfButton({ cards, onError }: GeneratePdfButtonProps) {
     try {
       await downloadDeckPdf(cards, "full-hd", setFullHdProgress);
     } catch (error) {
-      onError(error instanceof Error ? error.message : "Falha ao gerar PDF FULL HD.");
+      onError(
+        error instanceof Error ? error.message : "Falha ao gerar PDF FULL HD.",
+      );
     } finally {
       setIsGeneratingFullHd(false);
       setFullHdProgress(null);
@@ -223,13 +266,20 @@ export function GeneratePdfButton({ cards, onError }: GeneratePdfButtonProps) {
   const hasCards = cards.length > 0;
   const isPaymentApproved = payment?.status === "approved";
   const fullHdProgressPercent = fullHdProgress?.total
-    ? Math.min(100, Math.max(6, Math.round((fullHdProgress.current / fullHdProgress.total) * 100)))
+    ? Math.min(
+        100,
+        Math.max(
+          6,
+          Math.round((fullHdProgress.current / fullHdProgress.total) * 100),
+        ),
+      )
     : 8;
-  const fullHdProgressLabel = fullHdProgress?.stage === "saving"
-    ? "Fechando o PDF em alta qualidade..."
-    : fullHdProgress?.stage === "packing"
-      ? "Organizando as cartas no PDF..."
-      : "Renderizando cartas em alta resolucao para impressao...";
+  const fullHdProgressLabel =
+    fullHdProgress?.stage === "saving"
+      ? "Fechando o PDF em alta qualidade..."
+      : fullHdProgress?.stage === "packing"
+        ? "Organizando as cartas no PDF..."
+        : "Renderizando cartas em alta resolucao para impressao...";
 
   return (
     <section className="space-y-3">
@@ -243,8 +293,12 @@ export function GeneratePdfButton({ cards, onError }: GeneratePdfButtonProps) {
             <div className="mx-auto grid h-14 w-14 place-items-center rounded-lg bg-emerald-800 text-white">
               <Printer size={26} />
             </div>
-            <h2 className="mt-4 text-xl font-black text-stone-950">Preparando FULL HD</h2>
-            <p className="mt-2 text-sm font-bold leading-snug text-stone-600">{fullHdProgressLabel}</p>
+            <h2 className="mt-4 text-xl font-black text-stone-950">
+              Aumentando a qualidade...
+            </h2>
+            <p className="mt-2 text-sm font-bold leading-snug text-stone-600">
+              {fullHdProgressLabel}
+            </p>
             <div className="mt-4 h-3 overflow-hidden rounded-full bg-stone-200">
               <div
                 className="h-full rounded-full bg-emerald-800 transition-all"
@@ -252,9 +306,16 @@ export function GeneratePdfButton({ cards, onError }: GeneratePdfButtonProps) {
               />
             </div>
             <p className="mt-3 text-xs font-black text-emerald-900">
-              {fullHdProgress?.current ?? 0} de {fullHdProgress?.total ?? cards.length} cartas
+              {fullHdProgress?.current ?? 0} de{" "}
+              {fullHdProgress?.total ?? cards.length} cartas
             </p>
-            <p className="mt-1 text-xs font-semibold text-stone-500">Pode levar alguns segundos porque a versao paga e renderizada em qualidade de impressao.</p>
+            <p className="mt-1 text-xs font-semibold text-stone-500">
+              Pode levar alguns minutos porque a versao paga é renderizada em
+              qualidade de impressão.
+            </p>
+            <p className="mt-1 text-xs font-semibold text-red-500">
+              Não feche e nem saia desta página até o término do processo.
+            </p>
           </div>
         </div>
       ) : null}
@@ -277,17 +338,27 @@ export function GeneratePdfButton({ cards, onError }: GeneratePdfButtonProps) {
             disabled={!hasCards || isGeneratingFree}
             className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-lg border border-stone-300 bg-stone-50 px-4 text-sm font-black text-stone-950 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-60"
           >
-            {isGeneratingFree ? <Loader2 className="animate-spin" size={18} /> : <FileDown size={18} />}
-            Baixar gratis com qualidade inferior
+            {isGeneratingFree ? (
+              <Loader2 className="animate-spin" size={18} />
+            ) : (
+              <FileDown size={18} />
+            )}
+            Baixar grátis com qualidade inferior
           </button>
 
           <div className="grid gap-2 rounded-lg border border-emerald-200 bg-emerald-50 p-3">
             <div className="flex items-center justify-between gap-3">
               <div>
-                <p className="text-sm font-black text-stone-950">FULL HD para impressao</p>
+                <p className="text-sm font-black text-stone-950">
+                  FULL HD para impressão
+                </p>
                 <p className="text-xs font-bold text-emerald-800">R$ 4,99</p>
               </div>
-              {isPaymentApproved ? <CheckCircle2 className="text-emerald-800" size={22} /> : <QrCode className="text-emerald-800" size={22} />}
+              {isPaymentApproved ? (
+                <CheckCircle2 className="text-emerald-800" size={22} />
+              ) : (
+                <QrCode className="text-emerald-800" size={22} />
+              )}
             </div>
 
             {!payment ? (
@@ -311,7 +382,11 @@ export function GeneratePdfButton({ cards, onError }: GeneratePdfButtonProps) {
                   disabled={!hasCards || isGeneratingFullHd}
                   className="inline-flex min-h-12 items-center justify-center gap-2 rounded-lg bg-emerald-800 px-4 text-sm font-black text-white active:scale-[0.99] disabled:cursor-not-allowed disabled:bg-stone-400"
                 >
-                  {isGeneratingFullHd ? <Loader2 className="animate-spin" size={18} /> : <QrCode size={18} />}
+                  {isGeneratingFullHd ? (
+                    <Loader2 className="animate-spin" size={18} />
+                  ) : (
+                    <QrCode size={18} />
+                  )}
                   Gerar Pix
                 </button>
               </div>
@@ -339,7 +414,9 @@ export function GeneratePdfButton({ cards, onError }: GeneratePdfButtonProps) {
                     disabled={isCheckingPayment}
                     className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-emerald-300 bg-white px-3 text-sm font-black text-emerald-900 disabled:opacity-60"
                   >
-                    {isCheckingPayment ? <Loader2 className="animate-spin" size={17} /> : null}
+                    {isCheckingPayment ? (
+                      <Loader2 className="animate-spin" size={17} />
+                    ) : null}
                     Verificar
                   </button>
                   <button
@@ -351,11 +428,17 @@ export function GeneratePdfButton({ cards, onError }: GeneratePdfButtonProps) {
                     Baixar FULL HD
                   </button>
                 </div>
-                <p className="text-xs font-bold text-stone-600">Payment ID: {payment.id}</p>
+                <p className="text-xs font-bold text-stone-600">
+                  Payment ID: {payment.id}
+                </p>
               </div>
             )}
 
-            {paymentMessage ? <p className="text-xs font-black text-emerald-900">{paymentMessage}</p> : null}
+            {paymentMessage ? (
+              <p className="text-xs font-black text-emerald-900">
+                {paymentMessage}
+              </p>
+            ) : null}
           </div>
         </div>
       ) : null}
