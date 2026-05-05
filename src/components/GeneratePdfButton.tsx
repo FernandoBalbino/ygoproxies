@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import {
   CheckCircle2,
@@ -63,6 +63,8 @@ export function GeneratePdfButton({ cards, onError }: GeneratePdfButtonProps) {
   const [payerName, setPayerName] = useState("");
   const [payment, setPayment] = useState<PixPayment | null>(null);
   const [paymentMessage, setPaymentMessage] = useState("");
+  const [freeProgress, setFreeProgress] =
+    useState<PdfGenerationProgress | null>(null);
   const [fullHdProgress, setFullHdProgress] =
     useState<PdfGenerationProgress | null>(null);
 
@@ -84,14 +86,16 @@ export function GeneratePdfButton({ cards, onError }: GeneratePdfButtonProps) {
 
   async function handleDownloadFree() {
     setIsGeneratingFree(true);
+    setFreeProgress({ current: 0, total: cards.length, stage: "packing" });
     onError("");
 
     try {
-      await downloadDeckPdf(cards, "free");
+      await downloadDeckPdf(cards, "free", setFreeProgress);
     } catch (error) {
       onError(error instanceof Error ? error.message : "Falha ao gerar PDF.");
     } finally {
       setIsGeneratingFree(false);
+      setFreeProgress(null);
     }
   }
 
@@ -265,56 +269,78 @@ export function GeneratePdfButton({ cards, onError }: GeneratePdfButtonProps) {
 
   const hasCards = cards.length > 0;
   const isPaymentApproved = payment?.status === "approved";
-  const fullHdProgressPercent = fullHdProgress?.total
+  const activeProgress = freeProgress ?? fullHdProgress;
+  const isFreeProgress = Boolean(freeProgress);
+  const progressTheme = isFreeProgress
+    ? {
+        border: "border-red-200",
+        icon: "bg-red-800",
+        bar: "bg-red-800",
+        text: "text-red-900",
+      }
+    : {
+        border: "border-emerald-200",
+        icon: "bg-emerald-800",
+        bar: "bg-emerald-800",
+        text: "text-emerald-900",
+      };
+  const downloadProgressPercent = activeProgress?.total
     ? Math.min(
         100,
         Math.max(
           6,
-          Math.round((fullHdProgress.current / fullHdProgress.total) * 100),
+          Math.round((activeProgress.current / activeProgress.total) * 100),
         ),
       )
     : 8;
-  const fullHdProgressLabel =
-    fullHdProgress?.stage === "saving"
+  const downloadProgressTitle = isFreeProgress
+    ? "Preparando PDF gratis..."
+    : "Aumentando a qualidade...";
+  const downloadProgressLabel = isFreeProgress
+    ? activeProgress?.stage === "saving"
+      ? "Fechando o PDF gratis..."
+      : "Comprimindo as cartas para baixar..."
+    : activeProgress?.stage === "saving"
       ? "Fechando o PDF em alta qualidade..."
-      : fullHdProgress?.stage === "packing"
+      : activeProgress?.stage === "packing"
         ? "Organizando as cartas no PDF..."
         : "Renderizando cartas em alta resolucao para impressao...";
+  const downloadProgressNote = isFreeProgress
+    ? "Pode levar alguns segundos dependendo da quantidade de cartas."
+    : "Pode levar alguns minutos porque a versao paga e renderizada em qualidade de impressao.";
 
   return (
     <section className="space-y-3">
-      {isGeneratingFullHd ? (
+      {activeProgress ? (
         <div className="fixed inset-0 z-[60] grid place-items-center bg-stone-950/70 px-4 backdrop-blur-sm">
           <div
             role="status"
             aria-live="polite"
-            className="w-full max-w-sm rounded-lg border border-emerald-200 bg-white p-5 text-center shadow-[0_24px_60px_rgba(0,0,0,0.35)]"
+            className={`w-full max-w-sm rounded-lg border ${progressTheme.border} bg-white p-5 text-center shadow-[0_24px_60px_rgba(0,0,0,0.35)]`}
           >
-            <div className="mx-auto grid h-14 w-14 place-items-center rounded-lg bg-emerald-800 text-white">
+            <div className={`mx-auto grid h-14 w-14 place-items-center rounded-lg ${progressTheme.icon} text-white`}>
               <Printer size={26} />
             </div>
             <h2 className="mt-4 text-xl font-black text-stone-950">
-              Aumentando a qualidade...
+              {downloadProgressTitle}
             </h2>
             <p className="mt-2 text-sm font-bold leading-snug text-stone-600">
-              {fullHdProgressLabel}
+              {downloadProgressLabel}
             </p>
             <div className="mt-4 h-3 overflow-hidden rounded-full bg-stone-200">
               <div
-                className="h-full rounded-full bg-emerald-800 transition-all"
-                style={{ width: `${fullHdProgressPercent}%` }}
+                className={`h-full rounded-full ${progressTheme.bar} transition-all`}
+                style={{ width: `${downloadProgressPercent}%` }}
               />
             </div>
-            <p className="mt-3 text-xs font-black text-emerald-900">
-              {fullHdProgress?.current ?? 0} de{" "}
-              {fullHdProgress?.total ?? cards.length} cartas
+            <p className={`mt-3 text-xs font-black ${progressTheme.text}`}>
+              {activeProgress.current} de {activeProgress.total} cartas
             </p>
             <p className="mt-1 text-xs font-semibold text-stone-500">
-              Pode levar alguns minutos porque a versao paga é renderizada em
-              qualidade de impressão.
+              {downloadProgressNote}
             </p>
             <p className="mt-1 text-xs font-semibold text-red-500">
-              Não feche e nem saia desta página até o término do processo.
+              NÃ£o feche e nem saia desta pÃ¡gina atÃ© o tÃ©rmino do processo.
             </p>
           </div>
         </div>
@@ -343,14 +369,14 @@ export function GeneratePdfButton({ cards, onError }: GeneratePdfButtonProps) {
             ) : (
               <FileDown size={18} />
             )}
-            Baixar grátis com qualidade inferior
+            Baixar grÃ¡tis com qualidade inferior
           </button>
 
           <div className="grid gap-2 rounded-lg border border-emerald-200 bg-emerald-50 p-3">
             <div className="flex items-center justify-between gap-3">
               <div>
                 <p className="text-sm font-black text-stone-950">
-                  FULL HD para impressão
+                  FULL HD para impressÃ£o
                 </p>
                 <p className="text-xs font-bold text-emerald-800">R$ 4,99</p>
               </div>

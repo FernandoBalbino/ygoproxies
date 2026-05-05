@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { CardPreview } from "@/components/CardPreview";
 import { CardSearchResults } from "@/components/CardSearchResults";
 import { DeckDock } from "@/components/DeckDock";
@@ -12,6 +12,7 @@ import type { DeckType, NormalizedCard, RenderedCard } from "@/types/card.types"
 import type { DeckCard, DeckState } from "@/types/deck.types";
 
 const MAX_CARD_COPIES = 3;
+const DECK_STORAGE_KEY = "ygoproxies.deck.v1";
 
 function createInstanceId(cardId: number): string {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
@@ -42,6 +43,54 @@ function expandDeckCards(cards: DeckCard[]): DeckCard[] {
   );
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function normalizeStoredDeckCard(value: unknown, deckType: DeckType): DeckCard | null {
+  if (!isRecord(value)) {
+    return null;
+  }
+
+  const id = typeof value.id === "number" ? value.id : Number(value.id);
+  const name = typeof value.name === "string" ? value.name : "";
+  const renderedImageDataUrl = typeof value.renderedImageDataUrl === "string" ? value.renderedImageDataUrl : "";
+
+  if (!Number.isFinite(id) || !name || !renderedImageDataUrl) {
+    return null;
+  }
+
+  const storedLanguage = value.renderLanguage === "en" || value.renderLanguage === "pt"
+    ? value.renderLanguage
+    : undefined;
+
+  return {
+    ...(value as unknown as DeckCard),
+    id,
+    name,
+    deckType,
+    instanceId: typeof value.instanceId === "string" ? value.instanceId : createInstanceId(id),
+    quantity: normalizeCardQuantity(Number(value.quantity ?? 1)),
+    renderedImageDataUrl,
+    renderLanguage: storedLanguage,
+  };
+}
+
+function normalizeStoredDeck(value: unknown): DeckState | null {
+  if (!isRecord(value)) {
+    return null;
+  }
+
+  const main = Array.isArray(value.main)
+    ? value.main.map((card) => normalizeStoredDeckCard(card, "main")).filter((card): card is DeckCard => Boolean(card))
+    : [];
+  const extra = Array.isArray(value.extra)
+    ? value.extra.map((card) => normalizeStoredDeckCard(card, "extra")).filter((card): card is DeckCard => Boolean(card))
+    : [];
+
+  return { main, extra };
+}
+
 export default function Home() {
   const [query, setQuery] = useState("");
   const [language, setLanguage] = useState<"pt" | "en">("pt");
@@ -52,10 +101,45 @@ export default function Home() {
   const [activeDeck, setActiveDeck] = useState<DeckType | null>(null);
   const [isSearching, setIsSearching] = useState(false);
   const [isRendering, setIsRendering] = useState(false);
+  const [hasLoadedStoredDeck, setHasLoadedStoredDeck] = useState(false);
   const [error, setError] = useState("");
 
   const allDeckCards = useMemo(() => expandDeckCards([...deck.main, ...deck.extra]), [deck]);
   const closeDeck = useCallback(() => setActiveDeck(null), []);
+
+  useEffect(() => {
+    try {
+      const storedDeck = window.localStorage.getItem(DECK_STORAGE_KEY);
+      if (!storedDeck) {
+        return;
+      }
+
+      const parsedDeck = normalizeStoredDeck(JSON.parse(storedDeck));
+      if (parsedDeck) {
+        setDeck(parsedDeck);
+      }
+    } catch {
+      window.localStorage.removeItem(DECK_STORAGE_KEY);
+    } finally {
+      setHasLoadedStoredDeck(true);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!hasLoadedStoredDeck) {
+      return;
+    }
+
+    try {
+      if (deck.main.length || deck.extra.length) {
+        window.localStorage.setItem(DECK_STORAGE_KEY, JSON.stringify(deck));
+      } else {
+        window.localStorage.removeItem(DECK_STORAGE_KEY);
+      }
+    } catch {
+      // The deck still works in memory if localStorage is full or unavailable.
+    }
+  }, [deck, hasLoadedStoredDeck]);
 
   async function handleSearch() {
     const term = query.trim();
