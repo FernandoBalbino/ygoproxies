@@ -1,6 +1,6 @@
 import type { YgoProCard, YgoProResponse } from "@/types/ygopro.types";
 
-const YGOPRO_ENDPOINT = "https://db.ygoprodeck.com/api/v7/cardinfo.php";
+const YGOPRO_ENDPOINT = "https://ygoprodeck.com/api/v7/cardinfo.php";
 
 export class YgoProServiceError extends Error {
   constructor(message: string, public status?: number) {
@@ -24,7 +24,7 @@ async function requestCards(params: URLSearchParams): Promise<YgoProCard[]> {
   }
 
   if (!response.ok) {
-    throw new YgoProServiceError("A API do YGOPRODeck não respondeu corretamente.", response.status);
+    throw new YgoProServiceError(`A API do YGOPRODeck retornou erro (${response.status}).`, response.status);
   }
 
   return payload.data ?? [];
