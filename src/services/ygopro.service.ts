@@ -30,6 +30,14 @@ async function requestCards(params: URLSearchParams): Promise<YgoProCard[]> {
   return payload.data ?? [];
 }
 
+async function requestCardsBestEffort(params: URLSearchParams): Promise<YgoProCard[]> {
+  try {
+    return await requestCards(params);
+  } catch {
+    return [];
+  }
+}
+
 export async function searchCardsByName(name: string, language: "pt" | "en" = "pt"): Promise<YgoProCard[]> {
   const term = name.trim();
   if (!term) {
@@ -46,7 +54,7 @@ export async function searchCardsByName(name: string, language: "pt" | "en" = "p
     language: "pt",
   });
 
-  const portugueseCards = await requestCards(portugueseParams);
+  const portugueseCards = await requestCardsBestEffort(portugueseParams);
   if (portugueseCards.length) {
     return portugueseCards;
   }
@@ -66,18 +74,24 @@ export async function searchCardsByName(name: string, language: "pt" | "en" = "p
     language: "pt",
   });
 
-  return requestCards(localizedParams);
+  const localizedCards = await requestCardsBestEffort(localizedParams);
+  return localizedCards.length ? localizedCards : fallbackCards.slice(0, 30);
 }
 
 export async function getCardById(cardId: number, language: "pt" | "en" = "pt"): Promise<YgoProCard | null> {
-  const params = new URLSearchParams({
+  const englishParams = new URLSearchParams({
     id: String(cardId),
   });
   
   if (language === "pt") {
-    params.set("language", "pt");
+    const portugueseParams = new URLSearchParams(englishParams);
+    portugueseParams.set("language", "pt");
+    const portugueseCards = await requestCardsBestEffort(portugueseParams);
+    if (portugueseCards[0]) {
+      return portugueseCards[0];
+    }
   }
 
-  const cards = await requestCards(params);
+  const cards = await requestCards(englishParams);
   return cards[0] ?? null;
 }
